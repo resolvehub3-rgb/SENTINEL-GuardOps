@@ -1,0 +1,8 @@
+{
+  "name": "SamTeck GuardOps",
+  "description": "Enterprise security operations management platform by SamTeck Digital for managing guards, supervisors, clients, locations, attendance, incidents, live tracking, and SaaS administration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
