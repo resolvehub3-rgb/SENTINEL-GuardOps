@@ -322,6 +322,7 @@ export interface SystemServiceHealthRecord {
 
 export interface GuardShiftHistoryItem {
   id: string;
+  guardId?: string;
   date: string;
   postName: string;
   shiftWindow: string;

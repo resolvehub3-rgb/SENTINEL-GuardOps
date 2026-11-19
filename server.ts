@@ -327,56 +327,122 @@ async function startServer(): Promise<void> {
   // =========================================================================
   app.get('/api/company/overview', requireAuth, requireRole(['company']), (req: AuthedRequest, res) => {
     const db = dbStore.read();
-    const period = (req.query.period as string) || '7d';
+    const companyId = req.authUser!.companyId ?? 'comp-default';
+    const companyGuards = db.guards.filter((g) => g.companyId === companyId);
+    const companyLocations = db.locations.filter((l) => l.companyId === companyId);
+    const companyIncidents = db.incidents.filter((i) => i.companyId === companyId);
+    const companyOccurrences = db.occurrences.filter((o) => o.companyId === companyId);
+    const companySchedules = db.schedules.filter((s) => s.companyId === companyId);
+    const companyAttendance = db.attendance.filter((a) => a.companyId === companyId);
+    const companyShiftReports = db.shiftReports.filter((r) => r.companyId === companyId);
+    const companyClients = db.clients.filter((c) => c.companyId === companyId);
+    const companySupervisors = db.supervisors.filter((s) => s.companyId === companyId);
+    const companyAnnouncements = db.announcements.filter((a) => a.companyId === companyId);
+    const companyActivities = db.activities
+      .filter((a) => a.scope === 'company' && (!a.companyId || a.companyId === companyId))
+      .slice(0, 8);
+    const companyProfile = db.companies.find((c) => c.id === companyId) ?? null;
+
     const kpis = computeCompanyMetrics(
-      db.guards,
-      db.locations,
-      db.incidents,
+      companyGuards,
+      companyLocations,
+      companyIncidents,
       db.companyFleetOnDutyOffset,
     );
-    const onDutyGuards = filterOnDutyGuardsForLiveMap(db.guards, '', 'all', 'all');
-    const topLocations = db.locations.slice(0, 5);
-    const series =
-      period === 'today'
-        ? db.incidentSeries.today
-        : period === '30d'
-          ? db.incidentSeries['30d']
-          : db.incidentSeries['7d'];
+    const onDutyGuards = filterOnDutyGuardsForLiveMap(companyGuards, '', 'all', 'all');
+    const topLocations = companyLocations.slice(0, 5);
+
+    const incidentSeries =
+      companyIncidents.length === 0
+        ? []
+        : (['Low', 'Medium', 'High', 'Critical'] as const).map((sev) => ({
+            label: sev,
+            current: companyIncidents.filter((inc) => inc.severity === sev && inc.status !== 'Resolved').length,
+            previous: companyIncidents.filter((inc) => inc.severity === sev && inc.status === 'Resolved').length,
+          }));
 
     res.json({
-      companyName: req.authUser!.companyName ?? 'Acme Security Ltd',
+      companyName: companyProfile?.name ?? req.authUser!.companyName ?? 'Company Workspace',
+      companyProfile,
       kpis,
       liveMapGuards: onDutyGuards,
-      allGuards: db.guards,
-      locations: db.locations,
+      allGuards: companyGuards,
+      locations: companyLocations,
       topLocations,
-      recentActivity: db.activities.filter((a) => a.scope === 'company').slice(0, 8),
-      incidentSeries: series,
-      incidents: db.incidents,
-      occurrences: db.occurrences,
-      schedules: db.schedules,
-      attendance: db.attendance,
-      shiftReports: db.shiftReports,
-      clients: db.clients,
-      supervisors: db.supervisors,
-      announcements: db.announcements,
-      invoices: db.invoices.filter((i) => i.companyId === 'comp-acme'),
+      recentActivity: companyActivities,
+      incidentSeries,
+      incidents: companyIncidents,
+      occurrences: companyOccurrences,
+      schedules: companySchedules,
+      attendance: companyAttendance,
+      shiftReports: companyShiftReports,
+      clients: companyClients,
+      supervisors: companySupervisors,
+      announcements: companyAnnouncements,
+      invoices: db.invoices.filter((i) => i.companyId === companyId),
     });
   });
 
-  app.get('/api/company/live-map', requireAuth, requireRole(['company']), (req, res) => {
+  app.get('/api/company/live-map', requireAuth, requireRole(['company']), (req: AuthedRequest, res) => {
     const db = dbStore.read();
+    const companyId = req.authUser!.companyId ?? 'comp-default';
+    const companyGuards = db.guards.filter((g) => g.companyId === companyId);
+    const companyLocations = db.locations.filter((l) => l.companyId === companyId);
     const search = String(req.query.search ?? '');
     const locationFilter = String(req.query.locationId ?? 'all');
     const postFilter = String(req.query.postName ?? 'all');
-    const guards = filterOnDutyGuardsForLiveMap(db.guards, search, locationFilter, postFilter);
+    const guards = filterOnDutyGuardsForLiveMap(companyGuards, search, locationFilter, postFilter);
     res.json({
       guards,
-      locations: db.locations.slice(0, 12),
+      locations: companyLocations.slice(0, 12),
     });
   });
 
-  app.post('/api/company/guards', requireAuth, requireRole(['company']), (req, res) => {
+  app.post('/api/company/supervisors', requireAuth, requireRole(['company']), (req: AuthedRequest, res) => {
+    const { name, email, phone } = req.body as {
+      name?: string;
+      email?: string;
+      phone?: string;
+    };
+    if (!name || name.trim().length < 2 || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      res.status(400).json({ error: 'Supervisor full name and valid email address are required' });
+      return;
+    }
+    const companyId = req.authUser!.companyId ?? 'comp-default';
+    const created = dbStore.mutate((db) => {
+      const nextNum = db.supervisors.length + 1;
+      const newSup = {
+        id: `sup-${Date.now()}`,
+        companyId,
+        name: name.trim(),
+        employeeId: `SUP-${String(nextNum).padStart(3, '0')}`,
+        email: email.trim().toLowerCase(),
+        phone: phone?.trim() || '',
+        avatar: '/src/assets/images/avatar_supervisor_marcus_1795080332764.jpg',
+        assignedLocations: [],
+        assignedGuardsCount: 0,
+        avgResponseMinutes: 0,
+        status: 'Active' as const,
+      };
+      db.supervisors.unshift(newSup);
+      db.activities.unshift({
+        id: `act-${Date.now()}`,
+        companyId,
+        scope: 'company',
+        type: 'assignment',
+        message: `Supervisor registered — ${newSup.name} (${newSup.employeeId})`,
+        timeAgo: 'Just now',
+        createdAt: new Date().toISOString(),
+        statusLabel: 'Active',
+        tone: 'blue',
+      });
+      return newSup;
+    });
+    broadcastEvent('guard:created', created);
+    res.status(201).json({ supervisor: created });
+  });
+
+  app.post('/api/company/guards', requireAuth, requireRole(['company']), (req: AuthedRequest, res) => {
     const { name, phone, locationId, postName, shiftType } = req.body as {
       name?: string;
       phone?: string;
@@ -388,32 +454,37 @@ async function startServer(): Promise<void> {
       res.status(400).json({ error: 'Guard full name is required' });
       return;
     }
-    const created = dbStore.mutate((db) => {
-      const loc = db.locations.find((l) => l.id === locationId) ?? db.locations[0];
-      const nextNum = 1080 + db.guards.length;
+    const companyId = req.authUser!.companyId ?? 'comp-default';
+    const result = dbStore.mutate((db) => {
+      const companyLocations = db.locations.filter((l) => l.companyId === companyId);
+      const loc = companyLocations.find((l) => l.id === locationId) ?? companyLocations[0];
+      if (!loc) {
+        return { error: 'Please create a security location or client station before deploying a guard.' };
+      }
+      const nextNum = 1001 + db.guards.length;
       const shiftWin =
         shiftType === 'Night'
           ? '10:00 PM - 06:00 AM'
           : shiftType === 'Evening'
             ? '02:00 PM - 10:00 PM'
             : '06:00 AM - 02:00 PM';
-      const newGuard = {
+      const newGuard: GuardRecord = {
         id: `grd-${Date.now()}`,
-        companyId: 'comp-acme',
+        companyId,
         name: name.trim(),
         employeeId: `GRD-${nextNum}`,
         avatar: '/src/assets/images/avatar_guard_david_1795080333403.jpg',
-        phone: phone?.trim() || '+44 7700 900499',
-        status: 'On Duty' as const,
-        trackingState: 'On Duty' as const,
+        phone: phone?.trim() || '',
+        status: 'On Duty',
+        trackingState: 'On Duty',
         locationId: loc.id,
         locationName: loc.name,
         postName: postName?.trim() || loc.postCode,
         supervisorId: loc.supervisorId,
-        supervisorName: loc.supervisorName,
+        supervisorName: loc.supervisorName || 'Unassigned',
         shiftType: shiftType ?? 'Day',
         shiftWindow: shiftWin,
-        shiftStartTime: 'Just now',
+        shiftStartTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         lastActivity: 'Assigned & checked in',
         lastGpsUpdate: 'Just now',
         gpsAccuracyMeters: 5,
@@ -422,9 +493,24 @@ async function startServer(): Promise<void> {
         attendanceScore: 100,
       };
       db.guards.unshift(newGuard);
+
+      const guardsAtLoc = db.guards.filter((g) => g.locationId === loc.id);
+      loc.assignedGuardsCount = guardsAtLoc.length;
+      loc.onDutyCount = guardsAtLoc.filter((g) => g.status === 'On Duty').length;
+
+      const sup = db.supervisors.find((s) => s.id === loc.supervisorId);
+      if (sup) {
+        sup.assignedGuardsCount = db.guards.filter((g) => g.supervisorId === sup.id).length;
+      }
+
+      const comp = db.companies.find((c) => c.id === companyId);
+      if (comp) {
+        comp.guardsCount = db.guards.filter((g) => g.companyId === companyId).length;
+      }
+
       db.activities.unshift({
         id: `act-${Date.now()}`,
-        companyId: 'comp-acme',
+        companyId,
         scope: 'company',
         type: 'assignment',
         message: `New guard ${newGuard.name} assigned to ${loc.name}`,
@@ -433,13 +519,19 @@ async function startServer(): Promise<void> {
         statusLabel: 'Assigned',
         tone: 'emerald',
       });
-      return newGuard;
+      return { guard: newGuard };
     });
-    broadcastEvent('guard:created', created);
-    res.status(201).json({ guard: created });
+
+    if ('error' in result) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+
+    broadcastEvent('guard:created', result.guard);
+    res.status(201).json({ guard: result.guard });
   });
 
-  app.post('/api/company/locations', requireAuth, requireRole(['company']), (req, res) => {
+  app.post('/api/company/locations', requireAuth, requireRole(['company']), (req: AuthedRequest, res) => {
     const { name, clientId, address, zone, supervisorId } = req.body as {
       name?: string;
       clientId?: string;
@@ -451,32 +543,41 @@ async function startServer(): Promise<void> {
       res.status(400).json({ error: 'Location name and address are required' });
       return;
     }
+    const companyId = req.authUser!.companyId ?? 'comp-default';
     const created = dbStore.mutate((db) => {
-      const client = db.clients.find((c) => c.id === clientId) ?? db.clients[0];
-      const sup = db.supervisors.find((s) => s.id === supervisorId) ?? db.supervisors[0];
-      const newLoc = {
+      const client = db.clients.find((c) => c.id === clientId && c.companyId === companyId);
+      const sup = db.supervisors.find((s) => s.id === supervisorId && s.companyId === companyId);
+      const companyLocations = db.locations.filter((l) => l.companyId === companyId);
+      const newLoc: LocationRecord = {
         id: `loc-${Date.now()}`,
-        companyId: 'comp-acme',
-        clientId: client.id,
-        clientName: client.name,
+        companyId,
+        clientId: client?.id ?? '',
+        clientName: client?.name ?? 'Direct Site',
         name: name.trim(),
-        postCode: `POST-${db.locations.length + 1}`,
+        postCode: `POST-${companyLocations.length + 1}`,
         address: address.trim(),
         zone: zone?.trim() || 'Metro Zone',
-        supervisorId: sup.id,
-        supervisorName: sup.name,
-        assignedGuardsCount: 4,
-        onDutyCount: 4,
-        attendanceRate: 100,
-        sharePercent: 5,
-        status: 'Active' as const,
-        mapX: 44,
-        mapY: 38,
+        supervisorId: sup?.id ?? '',
+        supervisorName: sup?.name ?? 'Unassigned',
+        assignedGuardsCount: 0,
+        onDutyCount: 0,
+        attendanceRate: 0,
+        sharePercent: 0,
+        status: 'Active',
+        mapX: 32 + ((companyLocations.length * 13) % 46),
+        mapY: 30 + ((companyLocations.length * 17) % 45),
       };
       db.locations.unshift(newLoc);
+      if (sup && !sup.assignedLocations.includes(newLoc.name)) {
+        sup.assignedLocations.push(newLoc.name);
+      }
+      const comp = db.companies.find((c) => c.id === companyId);
+      if (comp) {
+        comp.locationsCount = db.locations.filter((l) => l.companyId === companyId).length;
+      }
       db.activities.unshift({
         id: `act-${Date.now()}`,
-        companyId: 'comp-acme',
+        companyId,
         scope: 'company',
         type: 'assignment',
         message: `Security post created — ${newLoc.name}`,
@@ -610,7 +711,11 @@ async function startServer(): Promise<void> {
   app.post('/api/company/stations/:id/assign', requireAuth, requireRole(['company']), (req: AuthedRequest, res) => {
     const locationId = req.params.id;
     const body = req.body as {
+      supervisorMode?: 'existing' | 'new';
       supervisorId?: string;
+      newSupervisorName?: string;
+      newSupervisorEmail?: string;
+      newSupervisorPhone?: string;
       guardMode?: 'existing' | 'new';
       guardId?: string;
       newGuardName?: string;
@@ -621,7 +726,9 @@ async function startServer(): Promise<void> {
 
     const validation = validateStationAssignmentInput({
       locationId,
+      supervisorMode: body.supervisorMode ?? 'existing',
       supervisorId: body.supervisorId,
+      newSupervisorName: body.newSupervisorName,
       guardMode: body.guardMode ?? 'existing',
       guardId: body.guardId,
       newGuardName: body.newGuardName,
@@ -636,7 +743,30 @@ async function startServer(): Promise<void> {
       const loc = db.locations.find((l) => l.id === locationId);
       if (!loc) return { error: 'Station not found', status: 404 as const };
 
-      const sup = db.supervisors.find((s) => s.id === body.supervisorId);
+      let sup = (body.supervisorMode ?? 'existing') === 'existing'
+        ? db.supervisors.find((s) => s.id === body.supervisorId)
+        : undefined;
+
+      if ((body.supervisorMode ?? 'existing') === 'new') {
+        const nextSupNum = db.supervisors.length + 1;
+        sup = {
+          id: `sup-${Date.now()}`,
+          companyId: loc.companyId,
+          name: body.newSupervisorName!.trim(),
+          employeeId: `SUP-${String(nextSupNum).padStart(3, '0')}`,
+          email:
+            body.newSupervisorEmail?.trim().toLowerCase() ||
+            `${body.newSupervisorName!.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.')}@sentinelguardops.com`,
+          phone: body.newSupervisorPhone?.trim() || '',
+          avatar: '/src/assets/images/avatar_supervisor_marcus_1795080332764.jpg',
+          assignedLocations: [],
+          assignedGuardsCount: 0,
+          avgResponseMinutes: 0,
+          status: 'Active',
+        };
+        db.supervisors.unshift(sup);
+      }
+
       if (!sup) return { error: 'Supervisor not found', status: 404 as const };
 
       const shiftType: 'Day' | 'Evening' | 'Night' = body.shiftType ?? 'Day';
@@ -661,14 +791,14 @@ async function startServer(): Promise<void> {
 
       let assignedGuard: GuardRecord;
       if ((body.guardMode ?? 'existing') === 'new') {
-        const nextNum = 1080 + db.guards.length;
+        const nextNum = 1001 + db.guards.length;
         assignedGuard = {
           id: `grd-${Date.now()}`,
           companyId: loc.companyId,
           name: body.newGuardName!.trim(),
           employeeId: `GRD-${nextNum}`,
           avatar: '/src/assets/images/avatar_guard_david_1795080333403.jpg',
-          phone: body.newGuardPhone?.trim() || '+44 7700 900512',
+          phone: body.newGuardPhone?.trim() || '',
           status: 'On Duty',
           trackingState: 'On Duty',
           locationId: loc.id,
@@ -678,7 +808,7 @@ async function startServer(): Promise<void> {
           supervisorName: sup.name,
           shiftType,
           shiftWindow: shiftWin,
-          shiftStartTime: 'Just now',
+          shiftStartTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           lastActivity: `Assigned to ${loc.name}`,
           lastGpsUpdate: 'Just now',
           gpsAccuracyMeters: 5,
@@ -706,6 +836,10 @@ async function startServer(): Promise<void> {
       const guardsAtStation = db.guards.filter((g) => g.locationId === loc.id);
       loc.assignedGuardsCount = guardsAtStation.length;
       loc.onDutyCount = guardsAtStation.filter((g) => g.status === 'On Duty').length;
+      const comp = db.companies.find((c) => c.id === loc.companyId);
+      if (comp) {
+        comp.guardsCount = db.guards.filter((g) => g.companyId === loc.companyId).length;
+      }
 
       sup.assignedGuardsCount = db.guards.filter((g) => g.supervisorId === sup.id).length;
 
@@ -777,15 +911,16 @@ async function startServer(): Promise<void> {
     res.json(result);
   });
 
-  app.post('/api/company/reports/:id/verify', requireAuth, requireRole(['company']), (req, res) => {
+  app.post('/api/company/reports/:id/verify', requireAuth, requireRole(['company']), (req: AuthedRequest, res) => {
+    const companyId = req.authUser!.companyId ?? 'comp-default';
     const report = dbStore.mutate((db) => {
-      const target = db.shiftReports.find((r) => r.id === req.params.id);
+      const target = db.shiftReports.find((r) => r.id === req.params.id && r.companyId === companyId);
       if (!target) return null;
       target.status = 'Verified by Owner';
       target.verifiedAt = 'Just now';
       db.activities.unshift({
         id: `act-${Date.now()}`,
-        companyId: 'comp-acme',
+        companyId,
         scope: 'company',
         type: 'verification',
         message: `Owner verified shift report for ${target.locationName}`,
@@ -804,19 +939,20 @@ async function startServer(): Promise<void> {
     res.json({ report });
   });
 
-  app.post('/api/company/incidents/:id/status', requireAuth, requireRole(['company', 'supervisor']), (req, res) => {
+  app.post('/api/company/incidents/:id/status', requireAuth, requireRole(['company', 'supervisor']), (req: AuthedRequest, res) => {
     const { status } = req.body as { status?: 'Open' | 'Investigating' | 'Resolved' | 'Escalated' };
     if (!status) {
       res.status(400).json({ error: 'Status is required' });
       return;
     }
+    const companyId = req.authUser!.companyId ?? 'comp-default';
     const updated = dbStore.mutate((db) => {
-      const inc = db.incidents.find((i) => i.id === req.params.id);
+      const inc = db.incidents.find((i) => i.id === req.params.id && i.companyId === companyId);
       if (!inc) return null;
       inc.status = status;
       db.activities.unshift({
         id: `act-${Date.now()}`,
-        companyId: 'comp-acme',
+        companyId,
         scope: 'company',
         type: 'incident',
         message: `Incident ${inc.type} at ${inc.locationName} marked ${status}`,
@@ -846,10 +982,11 @@ async function startServer(): Promise<void> {
       res.status(400).json({ error: 'Title and announcement message are required' });
       return;
     }
+    const companyId = req.authUser!.companyId ?? 'comp-default';
     const created = dbStore.mutate((db) => {
       const item = {
         id: `ann-${Date.now()}`,
-        companyId: 'comp-acme',
+        companyId,
         title: title.trim(),
         body: body.trim(),
         audience: audience ?? 'All Personnel',
@@ -864,7 +1001,7 @@ async function startServer(): Promise<void> {
     res.status(201).json({ announcement: created });
   });
 
-  app.post('/api/company/schedules', requireAuth, requireRole(['company', 'supervisor']), (req, res) => {
+  app.post('/api/company/schedules', requireAuth, requireRole(['company', 'supervisor']), (req: AuthedRequest, res) => {
     const { locationId, shiftType, date, startTime, endTime, guardId } = req.body as {
       locationId?: string;
       shiftType?: 'Day' | 'Evening' | 'Night';
@@ -877,12 +1014,17 @@ async function startServer(): Promise<void> {
       res.status(400).json({ error: 'Location, shift type, and date are required' });
       return;
     }
-    const created = dbStore.mutate((db) => {
-      const loc = db.locations.find((l) => l.id === locationId) ?? db.locations[0];
-      const guard = db.guards.find((g) => g.id === guardId);
+    const companyId = req.authUser!.companyId ?? 'comp-default';
+    const result = dbStore.mutate((db) => {
+      const companyLocations = db.locations.filter((l) => l.companyId === companyId);
+      const loc = companyLocations.find((l) => l.id === locationId) ?? companyLocations[0];
+      if (!loc) {
+        return { error: 'Please create a location before creating a duty schedule.' };
+      }
+      const guard = db.guards.find((g) => g.id === guardId && g.companyId === companyId);
       const sch = {
         id: `sch-${Date.now()}`,
-        companyId: 'comp-acme',
+        companyId,
         locationId: loc.id,
         locationName: loc.name,
         supervisorId: loc.supervisorId,
@@ -892,14 +1034,20 @@ async function startServer(): Promise<void> {
         date,
         assignedGuardIds: guard ? [guard.id] : [],
         assignedGuardNames: guard ? [guard.name] : ['Unassigned'],
-        requiredGuards: 6,
+        requiredGuards: loc.requiredGuards ?? 1,
         status: 'Scheduled' as const,
       };
       db.schedules.unshift(sch);
-      return sch;
+      return { schedule: sch };
     });
-    broadcastEvent('schedule:created', created);
-    res.status(201).json({ schedule: created });
+
+    if ('error' in result) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+
+    broadcastEvent('schedule:created', result.schedule);
+    res.status(201).json({ schedule: result.schedule });
   });
 
   // =========================================================================
@@ -908,12 +1056,15 @@ async function startServer(): Promise<void> {
   app.get('/api/supervisor/overview', requireAuth, requireRole(['supervisor']), (req: AuthedRequest, res) => {
     const db = dbStore.read();
     const supId = req.authUser!.id;
+    const companyId = req.authUser!.companyId ?? 'comp-default';
     const assignedGuards = db.guards.filter((g) => g.supervisorId === supId);
     const assignedLocations = db.locations.filter((l) => l.supervisorId === supId);
     const occurrences = db.occurrences.filter((o) => o.supervisorId === supId);
     const incidents = db.incidents.filter((i) => i.supervisorId === supId);
     const shiftReports = db.shiftReports.filter((r) => r.supervisorId === supId);
     const schedules = db.schedules.filter((s) => s.supervisorId === supId);
+    const assignedGuardIds = new Set(assignedGuards.map((g) => g.id));
+    const attendance = db.attendance.filter((a) => assignedGuardIds.has(a.guardId));
     const kpis = computeSupervisorMetrics(
       db.guards,
       db.incidents,
@@ -931,8 +1082,8 @@ async function startServer(): Promise<void> {
       incidents,
       shiftReports,
       schedules,
-      attendance: db.attendance,
-      announcements: db.announcements,
+      attendance,
+      announcements: db.announcements.filter((a) => a.companyId === companyId),
     });
   });
 
@@ -951,7 +1102,7 @@ async function startServer(): Promise<void> {
     res.json({ occurrence: updated });
   });
 
-  app.post('/api/supervisor/reports/:id/review', requireAuth, requireRole(['supervisor']), (req, res) => {
+  app.post('/api/supervisor/reports/:id/review', requireAuth, requireRole(['supervisor']), (req: AuthedRequest, res) => {
     const { action, reason } = req.body as { action?: 'finalize' | 'return'; reason?: string };
     if (!action || (action !== 'finalize' && action !== 'return')) {
       res.status(400).json({ error: 'Invalid review action' });
@@ -963,6 +1114,7 @@ async function startServer(): Promise<void> {
       return;
     }
 
+    const reviewerName = req.authUser!.name;
     const updated = dbStore.mutate((db) => {
       const report = db.shiftReports.find((r) => r.id === req.params.id);
       if (!report) return null;
@@ -970,13 +1122,12 @@ async function startServer(): Promise<void> {
       report.reviewReason = action === 'return' ? reason?.trim() : undefined;
       report.reviewedAt = 'Just now';
 
-      // Also update guard shift history item if matching
       const hist = db.guardShiftHistory.find((h) => h.id === report.id);
       if (hist) hist.reportStatus = report.status;
 
       db.activities.unshift({
         id: `act-${Date.now()}`,
-        companyId: 'comp-acme',
+        companyId: report.companyId,
         scope: 'company',
         type: 'review',
         message:
@@ -998,7 +1149,7 @@ async function startServer(): Promise<void> {
             : 'Shift Report Returned for Correction',
         message:
           action === 'finalize'
-            ? `Your shift report for ${report.locationName} was finalized by Marcus Cole.`
+            ? `Your shift report for ${report.locationName} was finalized by ${reviewerName}.`
             : `Correction requested: ${report.reviewReason}`,
         timeAgo: 'Just now',
         read: false,
@@ -1023,18 +1174,37 @@ async function startServer(): Promise<void> {
   app.get('/api/guard/state', requireAuth, requireRole(['guard']), (req: AuthedRequest, res) => {
     const db = dbStore.read();
     const guardId = req.authUser!.id;
-    const guard = db.guards.find((g) => g.id === guardId) ?? db.guards[0];
+    const guard = db.guards.find((g) => g.id === guardId) ?? null;
+
+    if (!guard) {
+      res.json({
+        guard: null,
+        user: req.authUser,
+        companyName: req.authUser!.companyName ?? 'Company Workspace',
+        isOnDuty: false,
+        shiftStartedIso: null,
+        todayOccurrences: [],
+        todayIncidents: [],
+        shiftHistory: [],
+      });
+      return;
+    }
+
     const isOnDuty = guard.status === 'On Duty';
     const shiftStartedIso = db.guardActiveShiftIso[guard.id] ?? null;
 
     res.json({
       guard,
+      user: req.authUser,
+      companyName:
+        db.companies.find((c) => c.id === guard.companyId)?.name ??
+        req.authUser!.companyName ??
+        'Company Workspace',
       isOnDuty,
       shiftStartedIso,
       todayOccurrences: db.occurrences.filter((o) => o.guardId === guard.id),
       todayIncidents: db.incidents.filter((i) => i.guardId === guard.id),
-      shiftHistory: db.guardShiftHistory,
-      evidenceSampleUrl: '/src/assets/images/avatar_evidence_gate_1795080333358.jpg',
+      shiftHistory: db.guardShiftHistory.filter((h) => !h.guardId || h.guardId === guard.id),
     });
   });
 
@@ -1061,7 +1231,7 @@ async function startServer(): Promise<void> {
         employeeId: guard.employeeId,
         locationName: guard.locationName,
         shiftDate: new Date().toISOString().slice(0, 10),
-        scheduledStart: '06:00 AM',
+        scheduledStart: guard.shiftWindow.split(' - ')[0] ?? '06:00 AM',
         actualCheckIn: timeStr,
         checkOut: null,
         status: 'Active',
@@ -1083,7 +1253,7 @@ async function startServer(): Promise<void> {
     });
 
     if (!result) {
-      res.status(404).json({ error: 'Guard profile not found' });
+      res.status(404).json({ error: 'No guard station assignment found for this account yet.' });
       return;
     }
     broadcastEvent('duty:updated', result.guard);
@@ -1105,7 +1275,8 @@ async function startServer(): Promise<void> {
 
     const guardId = req.authUser!.id;
     const created = dbStore.mutate((db) => {
-      const guard = db.guards.find((g) => g.id === guardId) ?? db.guards[0];
+      const guard = db.guards.find((g) => g.id === guardId);
+      if (!guard) return null;
       const occ = {
         id: `occ-${Date.now()}`,
         companyId: guard.companyId,
@@ -1119,7 +1290,7 @@ async function startServer(): Promise<void> {
         description: description!.trim(),
         evidenceUrl,
         evidenceType,
-        gpsLabel: `${guard.locationName} · ${guard.postName} (Simulated Check-in)`,
+        gpsLabel: `${guard.locationName} · ${guard.postName}`,
         createdAt: 'Just now',
         status: category === 'Suspicious Activity' ? ('Flagged' as const) : ('Logged' as const),
       };
@@ -1138,6 +1309,11 @@ async function startServer(): Promise<void> {
       });
       return occ;
     });
+
+    if (!created) {
+      res.status(404).json({ error: 'No guard station assignment found for this account yet.' });
+      return;
+    }
 
     broadcastEvent('occurrence:created', created);
     res.status(201).json({ occurrence: created });
@@ -1159,7 +1335,8 @@ async function startServer(): Promise<void> {
 
     const guardId = req.authUser!.id;
     const created = dbStore.mutate((db) => {
-      const guard = db.guards.find((g) => g.id === guardId) ?? db.guards[0];
+      const guard = db.guards.find((g) => g.id === guardId);
+      if (!guard) return null;
       const inc = {
         id: `inc-${Date.now()}`,
         companyId: guard.companyId,
@@ -1200,6 +1377,11 @@ async function startServer(): Promise<void> {
       return inc;
     });
 
+    if (!created) {
+      res.status(404).json({ error: 'No guard station assignment found for this account yet.' });
+      return;
+    }
+
     broadcastEvent('incident:created', created);
     res.status(201).json({ incident: created });
   });
@@ -1218,7 +1400,8 @@ async function startServer(): Promise<void> {
 
     const guardId = req.authUser!.id;
     const createdReport = dbStore.mutate((db) => {
-      const guard = db.guards.find((g) => g.id === guardId) ?? db.guards[0];
+      const guard = db.guards.find((g) => g.id === guardId);
+      if (!guard) return null;
       const endStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const occCount = db.occurrences.filter((o) => o.guardId === guard.id).length;
       const incCount = db.incidents.filter((i) => i.guardId === guard.id).length;
@@ -1245,13 +1428,14 @@ async function startServer(): Promise<void> {
         incidentsCount: incCount,
         handoverNotes: handoverNotes!.trim(),
         finalSummary: finalSummary!.trim(),
-        evidenceUrls: ['/src/assets/images/avatar_evidence_gate_1795080333358.jpg'],
+        evidenceUrls: [],
         status: 'Awaiting Review',
       };
 
       db.shiftReports.unshift(report);
       db.guardShiftHistory.unshift({
         id: reportId,
+        guardId: guard.id,
         date: report.shiftDate,
         postName: `${guard.locationName} — ${guard.postName}`,
         shiftWindow: guard.shiftWindow,
@@ -1283,6 +1467,11 @@ async function startServer(): Promise<void> {
       return report;
     });
 
+    if (!createdReport) {
+      res.status(404).json({ error: 'No guard station assignment found for this account yet.' });
+      return;
+    }
+
     broadcastEvent('report:submitted', createdReport);
     res.status(201).json({ report: createdReport });
   });
@@ -1296,13 +1485,22 @@ async function startServer(): Promise<void> {
     const totalSmsSent = db.companies.reduce((sum, c) => sum + c.smsCreditsUsed, 0);
     const totalSmsLimit = db.companies.reduce((sum, c) => sum + c.smsCreditsLimit, 0);
 
+    const billingMap = new Map<string, number>();
+    for (const inv of db.invoices) {
+      billingMap.set(inv.period, (billingMap.get(inv.period) ?? 0) + inv.amount);
+    }
+    const billingSeries = Array.from(billingMap.entries()).map(([month, revenue]) => ({
+      month,
+      revenue,
+    }));
+
     res.json({
       kpis,
       companies: db.companies,
       onboardingQueue: db.companies.filter(
         (c) => c.approvalStatus === 'Pending' || c.approvalStatus === 'In Review',
       ),
-      billingSeries: db.billingMonthlySeries,
+      billingSeries,
       platformActivity: db.activities.filter((a) => a.scope === 'admin').slice(0, 8),
       systemHealth: db.systemHealth,
       platformUsers: db.platformUsers,
@@ -1315,7 +1513,7 @@ async function startServer(): Promise<void> {
         creditsUsed: totalSmsSent,
         creditsLimit: totalSmsLimit,
         messagesSent: totalSmsSent,
-        failedMessages: 14,
+        failedMessages: 0,
       },
     });
   });

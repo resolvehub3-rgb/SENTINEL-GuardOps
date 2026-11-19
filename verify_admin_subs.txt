@@ -1,0 +1,6 @@
+### Result
+"PLATFORM\n\nDashboard\nCompanies\nCompany Approvals\nPlatform Users\n\nREVENUE & MESSAGING\n\nSubscriptions\nBilling\nSMS Usage\n\nGOVERNANCE & INFRASTRUCTURE\n\nNotifications\nSupport\nAudit Logs\nSystem Health\nSettings\nLogout\nSuper Admin Dashboard\n|\n\nPlatform Overview\n\nSA\nSA\nSaaS Subscriptions Management\n\nOversee company plan tiers, subscription lifecycle status, seat capacity, and SMS quotas.\n\nActive Subscriptions\n\n0\n\nActive tenant plans\n\nTrial Accounts\n\n0\n\nPending conversion\n\nExpired Subscriptions\n\n0\n\nRequires renewal\n\nMonthly Recurring Revenue\n\nGH₵0\n\nActive company MRR\nENTERPRISE TIER\n\n0 companies\n\nMulti-region & full dispatch telemetry\n\nGROWTH TIER\n\n0 companies\n\nStandard multi-site security teams\n\nSTARTER TIER\n\n0 companies\n\nSingle-zone starter operations\n\nAll Plans\nActive\nTrial\nExpired\nCOMPANY\tPLAN TIER\tGUARDS / SITES\tSMS QUOTA\tMONTHLY FEE\tSTATUS\tACTIONS\nNo company subscriptions yet."
+### Ran Playwright code
+```js
+await page.evaluate('() => document.body.innerText');
+```

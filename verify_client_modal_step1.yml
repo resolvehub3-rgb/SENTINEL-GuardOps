@@ -1,0 +1,119 @@
+- generic [ref=f2e3]:
+  - complementary [ref=f2e39]:
+    - generic [ref=f2e41]:
+      - generic [ref=f2e42]:
+        - generic [ref=f2e43]:
+          - img "Sentinel GuardOps — Security Operations Platform by Samley Technologies"
+        - button "Collapse sidebar" [ref=f2e44]
+      - navigation "Role sidebar navigation" [ref=f2e48]:
+        - generic [ref=f2e49]:
+          - paragraph [ref=f2e50]: Operations
+          - button "Dashboard" [ref=f2e51]
+          - button "My Guards" [ref=f2e59]
+          - button "My Locations" [ref=f2e64]
+          - button "Duty Schedules" [ref=f2e70]
+          - button "Attendance" [ref=f2e77]
+        - generic [ref=f2e83]:
+          - paragraph [ref=f2e84]: Monitoring & Review
+          - button "Live Occurrences" [ref=f2e85]
+          - button "Incident Reports" [ref=f2e94]
+          - button "Shift Reports" [ref=f2e99]
+          - button "Report Reviews" [ref=f2e105]
+        - generic [ref=f2e112]:
+          - paragraph [ref=f2e113]: Team & Account
+          - button "Announcements" [ref=f2e114]
+          - button "Notifications" [ref=f2e120]
+          - button "Profile" [ref=f2e126]
+          - button "Settings" [ref=f2e132]
+      - button "Logout" [ref=f2e139]
+  - generic [ref=f2e4]:
+    - banner [ref=f2e5]:
+      - generic [ref=f2e11]:
+        - heading "Supervisor Dashboard" [level=1] [ref=f2e12]
+        - generic [aria-hidden] [ref=f2e144]: "|"
+        - paragraph [ref=f2e145]: Monitor & Manage Your Team
+      - generic [ref=f2e13]:
+        - button "Switch to light mode" [ref=f2e14]
+        - button "Open notifications" [ref=f2e22]
+        - button "SP SP" [ref=f2e146]:
+          - generic [ref=f2e28]: SP
+          - generic [ref=f2e147]: SP
+    - main [ref=f2e31]:
+      - generic [ref=f2e148]:
+        - generic [ref=f2e149]:
+          - generic [ref=f2e150]:
+            - heading "Supervisor Dashboard" [level=2] [ref=f2e151]
+            - paragraph [ref=f2e152]: Monitor and manage your assigned security operations · Operations Supervisor (SUP-001)
+          - generic [ref=f2e153]:
+            - text: "Avg Incident Response:"
+            - generic [ref=f2e154]: 0 min
+        - generic [ref=f2e155]:
+          - button "Assigned Guards 0 Assigned to your posts" [ref=f2e156] [cursor=pointer]:
+            - generic [ref=f2e162]:
+              - paragraph [ref=f2e163]: Assigned Guards
+              - paragraph [ref=f2e164]: "0"
+            - generic [ref=f2e165]: Assigned to your posts
+          - button "Guards On Duty 0 Active across posts" [ref=f2e170] [cursor=pointer]:
+            - generic [ref=f2e177]:
+              - paragraph [ref=f2e178]: Guards On Duty
+              - paragraph [ref=f2e179]: "0"
+            - generic [ref=f2e180]: Active across posts
+          - button "Incidents Requiring Attention 0 0 total logged" [ref=f2e185] [cursor=pointer]:
+            - generic [ref=f2e191]:
+              - paragraph [ref=f2e192]: Incidents Requiring Attention
+              - paragraph [ref=f2e193]: "0"
+            - generic [ref=f2e194]: 0 total logged
+          - button "Reports Awaiting Review 0 0 total submitted" [ref=f2e199] [cursor=pointer]:
+            - generic [ref=f2e207]:
+              - paragraph [ref=f2e208]: Reports Awaiting Review
+              - paragraph [ref=f2e209]: "0"
+            - generic [ref=f2e210]: 0 total submitted
+        - generic [ref=f2e215]:
+          - generic [ref=f2e216]:
+            - generic [ref=f2e217]:
+              - generic [ref=f2e218]:
+                - heading "Assigned Guards" [level=3] [ref=f2e219]
+                - generic [ref=f2e220]:
+                  - searchbox "Search guard..." [ref=f2e225]
+                  - combobox "Filter assigned guards" [ref=f2e226]:
+                    - option "All Status" [selected]
+                    - option "On Duty"
+                    - option "Off Duty"
+                    - option "On Break"
+                    - option "Late"
+              - generic [ref=f2e227]:
+                - heading "No guards assigned yet" [level=3] [ref=f2e231]
+                - paragraph [ref=f2e232]: Guards assigned to your supervision stations will appear here.
+            - generic [ref=f2e233]:
+              - generic [ref=f2e234]:
+                - heading "Live Occurrences" [level=3] [ref=f2e235]
+                - button "View All →" [ref=f2e236]
+              - generic [ref=f2e237]:
+                - heading "No live occurrences yet" [level=3] [ref=f2e245]
+                - paragraph [ref=f2e246]: Patrol observations submitted by your assigned guards will appear here.
+          - generic [ref=f2e247]:
+            - generic [ref=f2e248]:
+              - generic [ref=f2e249]:
+                - heading "Shift Schedule" [level=3] [ref=f2e250]
+                - generic [ref=f2e251]:
+                  - button "today" [ref=f2e252]
+                  - button "week" [ref=f2e253]
+              - generic [ref=f2e254]:
+                - heading "No shifts scheduled" [level=3] [ref=f2e260]
+                - paragraph [ref=f2e261]: Upcoming shift assignments for your supervised sites will appear here.
+            - generic [ref=f2e262]:
+              - generic [ref=f2e263]:
+                - heading "Incidents Needing Attention" [level=3] [ref=f2e264]
+                - generic [ref=f2e265]: "0"
+              - generic [ref=f2e266]:
+                - heading "No open incidents" [level=3] [ref=f2e270]
+                - paragraph [ref=f2e271]: Active incidents escalated from your assigned sites will appear here.
+            - generic [ref=f2e272]:
+              - generic [ref=f2e273]:
+                - generic [ref=f2e274]:
+                  - heading "Shift Report Review Queue" [level=3] [ref=f2e275]
+                  - generic [ref=f2e276]: "0"
+                - button "View All →" [ref=f2e277]
+              - generic [ref=f2e278]:
+                - heading "No shift reports to review" [level=3] [ref=f2e284]
+                - paragraph [ref=f2e285]: Closed guard shift reports awaiting your verification will appear here.

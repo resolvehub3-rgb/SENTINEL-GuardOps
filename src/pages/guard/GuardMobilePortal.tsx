@@ -33,6 +33,7 @@ import {
   validateShiftCloseInput,
 } from '../../utils/operations';
 import type {
+  AuthUser,
   GuardRecord,
   GuardShiftHistoryItem,
   IncidentRecord,
@@ -42,13 +43,14 @@ import type {
 } from '../../types/guardops';
 
 interface GuardStatePayload {
-  guard: GuardRecord;
+  guard: GuardRecord | null;
+  user?: AuthUser;
+  companyName?: string;
   isOnDuty: boolean;
   shiftStartedIso: string | null;
   todayOccurrences: OccurrenceRecord[];
   todayIncidents: IncidentRecord[];
   shiftHistory: GuardShiftHistoryItem[];
-  evidenceSampleUrl: string;
 }
 
 type BottomTab = 'home' | 'occurrences' | 'incidents' | 'history' | 'profile';
@@ -123,7 +125,9 @@ export function GuardMobilePortal() {
     try {
       const res = await apiRequest<GuardStatePayload>('/api/guard/state');
       setState(res);
-      setIncLocation((prev) => prev || `${res.guard.locationName} — ${res.guard.postName}`);
+      setIncLocation((prev) =>
+        prev || (res.guard ? `${res.guard.locationName} — ${res.guard.postName}` : ''),
+      );
     } catch (err) {
       showToast({
         title: 'Failed to load guard duty state',
@@ -333,7 +337,24 @@ export function GuardMobilePortal() {
           <LoadingSkeleton rows={5} />
         ) : bottomTab === 'home' ? (
           <>
-            {actionView === 'shift-submitted' ? (
+            {!state.guard ? (
+              <div className={`${cardCls} text-center py-8 space-y-4`}>
+                <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-[#0D182D] border border-slate-200 dark:border-[#24395D] text-[#10A878] flex items-center justify-center mx-auto">
+                  <MapPin className="w-8 h-8" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    {state.user?.name ?? 'Security Officer'} · {state.companyName ?? 'Company Workspace'}
+                  </p>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white mt-1">
+                    No Station Assignment Yet
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs mx-auto mt-1.5">
+                    Your security company management has not assigned you to a client station or duty post yet. Once assigned, your post and shift controls will appear here.
+                  </p>
+                </div>
+              </div>
+            ) : actionView === 'shift-submitted' ? (
               <div className={`${cardCls} text-center py-8 space-y-4`}>
                 <div className="w-16 h-16 rounded-full bg-[#10A878]/15 text-[#10A878] flex items-center justify-center mx-auto">
                   <CheckCircle2 className="w-9 h-9" />
@@ -761,7 +782,7 @@ export function GuardMobilePortal() {
                   <div>
                     <h2 className="text-base font-bold">Capture Evidence</h2>
                     <p className="text-[11px] text-slate-400">
-                      Prototype camera preview (simulated hardware capture)
+                      Upload or capture real photo/video evidence from your device
                     </p>
                   </div>
                   <div className="flex gap-1 p-1 rounded-lg bg-slate-100 dark:bg-[#0D182D]">
@@ -786,41 +807,73 @@ export function GuardMobilePortal() {
                   </div>
                 </div>
 
-                {/* Camera Preview / Captured Frame */}
-                <div className="relative rounded-xl overflow-hidden border border-slate-300 dark:border-[#24395D] bg-slate-950 h-56">
-                  <img
-                    src={state.evidenceSampleUrl}
-                    alt="Perimeter gate camera preview"
-                    referrerPolicy="no-referrer"
-                    className={`w-full h-full object-cover ${
-                      capturedEvidence ? 'opacity-100' : 'opacity-80'
-                    }`}
-                  />
+                {/* Real Device File/Camera Preview */}
+                <div className="relative rounded-xl overflow-hidden border border-slate-300 dark:border-[#24395D] bg-slate-950 h-56 flex items-center justify-center">
+                  {capturedEvidence ? (
+                    capturedEvidence.type === 'video' ? (
+                      <video
+                        src={capturedEvidence.url}
+                        controls
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <img
+                        src={capturedEvidence.url}
+                        alt="Captured shift evidence"
+                        className="w-full h-full object-cover"
+                      />
+                    )
+                  ) : (
+                    <div className="text-center px-6 space-y-2 text-slate-400">
+                      {captureMode === 'photo' ? (
+                        <Camera className="w-8 h-8 mx-auto text-[#10A878]" />
+                      ) : (
+                        <Video className="w-8 h-8 mx-auto text-[#10A878]" />
+                      )}
+                      <p className="text-xs font-semibold text-white">
+                        No {captureMode} captured yet
+                      </p>
+                      <p className="text-[11px]">
+                        Select or capture a real {captureMode} file from your device below.
+                      </p>
+                    </div>
+                  )}
                   <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-md bg-black/65 text-white text-[11px] font-mono-tabular">
                     {capturedEvidence
                       ? `CAPTURED ${capturedEvidence.type.toUpperCase()} · ${capturedEvidence.capturedAt}`
-                      : `${captureMode.toUpperCase()} VIEWFINDER · ${state.guard.postName}`}
+                      : `${captureMode.toUpperCase()} CAPTURE · ${state.guard?.postName ?? 'Unassigned Post'}`}
                   </div>
                 </div>
 
                 {!capturedEvidence ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCapturedEvidence({
-                        url: state.evidenceSampleUrl,
-                        type: captureMode,
-                        capturedAt: new Date().toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        }),
-                      })
-                    }
-                    className="w-full min-h-[50px] rounded-xl bg-[#10A878] hover:bg-[#0E9369] text-white text-sm font-bold flex items-center justify-center gap-2"
-                  >
+                  <label className="w-full min-h-[50px] rounded-xl bg-[#10A878] hover:bg-[#0E9369] text-white text-sm font-bold flex items-center justify-center gap-2 cursor-pointer">
                     {captureMode === 'photo' ? <Camera className="w-4 h-4" /> : <Video className="w-4 h-4" />}
-                    <span>{captureMode === 'photo' ? 'Capture Photo' : 'Record Video Clip'}</span>
-                  </button>
+                    <span>{captureMode === 'photo' ? 'Select / Capture Photo' : 'Select / Record Video'}</span>
+                    <input
+                      type="file"
+                      accept={captureMode === 'photo' ? 'image/*' : 'video/*'}
+                      capture="environment"
+                      className="sr-only"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          if (typeof reader.result === 'string') {
+                            setCapturedEvidence({
+                              url: reader.result,
+                              type: captureMode,
+                              capturedAt: new Date().toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              }),
+                            });
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
                 ) : (
                   <div className="space-y-2.5">
                     <div className="grid grid-cols-2 gap-2.5">
@@ -1015,49 +1068,71 @@ export function GuardMobilePortal() {
         ) : bottomTab === 'history' ? (
           <div className="space-y-3">
             <h2 className="text-base font-bold">Duty History</h2>
-            {state.shiftHistory.map((item) => (
-              <div key={item.id} className={cardCls}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono-tabular text-xs font-bold">{item.date}</span>
-                  <StatusBadge label={item.reportStatus} compact />
-                </div>
-                <p className="text-sm font-bold mt-1">{item.postName}</p>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  In: {item.checkIn} · Out: {item.checkOut} · {item.occurrencesLogged} obs · {item.incidentsReported} inc
+            {state.shiftHistory.length === 0 ? (
+              <div className={cardCls}>
+                <p className="text-xs text-slate-400 text-center py-6">
+                  No completed shift history yet.
                 </p>
               </div>
-            ))}
+            ) : (
+              state.shiftHistory.map((item) => (
+                <div key={item.id} className={cardCls}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono-tabular text-xs font-bold">{item.date}</span>
+                    <StatusBadge label={item.reportStatus} compact />
+                  </div>
+                  <p className="text-sm font-bold mt-1">{item.postName}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    In: {item.checkIn} · Out: {item.checkOut} · {item.occurrencesLogged} obs · {item.incidentsReported} inc
+                  </p>
+                </div>
+              ))
+            )}
           </div>
         ) : (
           <div className={`${cardCls} space-y-4`}>
             <div className="flex items-center gap-3.5">
-              <img
-                src={state.guard.avatar}
-                alt={state.guard.name}
-                referrerPolicy="no-referrer"
-                className="w-16 h-16 rounded-full object-cover border-2 border-[#10A878]"
-              />
+              {state.guard?.avatar ? (
+                <img
+                  src={state.guard.avatar}
+                  alt={state.guard.name}
+                  referrerPolicy="no-referrer"
+                  className="w-16 h-16 rounded-full object-cover border-2 border-[#10A878]"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-[#10213D] text-[#10A878] border-2 border-[#10A878] flex items-center justify-center font-bold text-lg">
+                  {state.user?.initials ?? 'SG'}
+                </div>
+              )}
               <div>
-                <h2 className="text-base font-bold">{state.guard.name}</h2>
-                <p className="text-xs font-mono-tabular text-slate-400">{state.guard.employeeId}</p>
+                <h2 className="text-base font-bold">
+                  {state.guard?.name ?? state.user?.name ?? 'Security Guard'}
+                </h2>
+                <p className="text-xs font-mono-tabular text-slate-400">
+                  {state.guard?.employeeId ?? state.user?.employeeId ?? 'Unassigned ID'}
+                </p>
                 <p className="text-xs text-[#10A878] font-semibold mt-0.5">
-                  Acme Security Ltd
+                  {state.companyName ?? state.user?.companyName ?? 'Company Workspace'}
                 </p>
               </div>
             </div>
             <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A] text-xs">
               <div className="py-2.5 flex justify-between">
                 <span className="text-slate-400">Assigned Post</span>
-                <span className="font-semibold">{state.guard.locationName}</span>
+                <span className="font-semibold">
+                  {state.guard?.locationName ?? 'Unassigned'}
+                </span>
               </div>
               <div className="py-2.5 flex justify-between">
                 <span className="text-slate-400">Supervisor</span>
-                <span className="font-semibold">{state.guard.supervisorName}</span>
+                <span className="font-semibold">
+                  {state.guard?.supervisorName ?? 'Unassigned'}
+                </span>
               </div>
               <div className="py-2.5 flex justify-between">
                 <span className="text-slate-400">Attendance Score</span>
                 <span className="font-bold text-[#10A878] tabular-nums">
-                  {state.guard.attendanceScore}%
+                  {state.guard?.attendanceScore ?? 0}%
                 </span>
               </div>
             </div>

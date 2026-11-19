@@ -1,0 +1,6 @@
+### Result
+"Duty History\n\nNo completed shift history yet.\n\nHome\nOccurrences\nIncidents\nHistory\nProfile"
+### Ran Playwright code
+```js
+await page.evaluate('() => document.body.innerText');
+```

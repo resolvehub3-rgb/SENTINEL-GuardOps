@@ -499,5 +499,50 @@ test('validateClientOnboardingInput and validateStationAssignmentInput validate 
   assert.equal(coverage.unassignedSitesCount, 0);
 });
 
+test('empty operational datasets compute exact zero metrics across all roles', () => {
+  const companyEmpty = computeCompanyMetrics([], [], [], 0);
+  assert.deepEqual(companyEmpty, {
+    guardsOnDuty: 0,
+    totalGuards: 0,
+    activeLocations: 0,
+    openIncidents: 0,
+    attendanceRate: 0,
+  });
+
+  const supEmpty = computeSupervisorMetrics([], [], [], 'usr-sup-1', 0);
+  assert.deepEqual(supEmpty, {
+    assignedGuards: 0,
+    guardsOnDuty: 0,
+    incidentsNeedingAttention: 0,
+    reportsAwaitingReview: 0,
+    avgResponseMinutes: 0,
+  });
+
+  const adminEmpty = computeAdminMetrics([], []);
+  assert.deepEqual(adminEmpty, {
+    registeredCompanies: 0,
+    totalGuards: 0,
+    activeSubscriptions: 0,
+    trialSubscriptions: 0,
+    expiredSubscriptions: 0,
+    pendingOnboarding: 0,
+    monthlyRevenue: 0,
+    platformAvailability: 0,
+  });
+
+  assert.equal(
+    validateStationAssignmentInput({
+      locationId: 'loc-1',
+      supervisorMode: 'new',
+      newSupervisorName: 'Kwame Boateng',
+      guardMode: 'new',
+      newGuardName: 'Yaw Mensah',
+      shiftType: 'Day',
+    }).valid,
+    true,
+  );
+});
+
+
 
 

@@ -1,0 +1,6 @@
+### Result
+"COMMAND\n\nDashboard\nLive Map\nAnalytics\n\nWORKFORCE & SITES\n\nClients\nLocations / Posts\nGuards\nSupervisors\nAssignments\nDuty Scheduling\nAttendance\n\nREPORTS & OVERSIGHT\n\nOccurrence Book\nIncident Reports\nShift Reports\nReport Reviews\nOwner Verification\n\nORGANIZATION\n\nAnnouncements\nNotifications\nReports\nSubscription & Billing\nSettings\nLogout\nSecurity Company Dashboard\n|\n\nComplete Security Operations Control\n\nCO\nCompany Workspace\nRegional Supervisors\n\nField leadership overseeing site compliance and shift report verification\n\nAdd Supervisor\nNo supervisors registered yet\n\nAdd a regional supervisor to oversee client stations, review shift reports, and manage field guards."
+### Ran Playwright code
+```js
+await page.evaluate('() => document.body.innerText');
+```

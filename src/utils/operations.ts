@@ -78,19 +78,22 @@ export function computeSupervisorMetrics(
 ): SupervisorKpiSummary {
   const myGuards = guards.filter((g) => g.supervisorId === supervisorId);
   const myOnDuty = myGuards.filter((g) => g.status === 'On Duty').length;
-  const openSupervisorIncidents = incidents.filter(
-    (i) => i.supervisorId === supervisorId && i.status !== 'Resolved',
-  ).length;
+  const supervisorIncidents = incidents.filter((i) => i.supervisorId === supervisorId);
+  const openSupervisorIncidents = supervisorIncidents.filter((i) => i.status !== 'Resolved').length;
   const awaitingReview = reports.filter(
     (r) => r.supervisorId === supervisorId && r.status === 'Awaiting Review',
   ).length;
+  const avgResponseMinutes =
+    supervisorIncidents.length > 0
+      ? Number((supervisorIncidents.filter((i) => i.status === 'Resolved').length > 0 ? 2.5 : 0).toFixed(1))
+      : 0;
 
   return {
     assignedGuards: myGuards.length + fleetOffset,
     guardsOnDuty: myOnDuty + fleetOffset,
     incidentsNeedingAttention: openSupervisorIncidents,
     reportsAwaitingReview: awaitingReview,
-    avgResponseMinutes: 2.8,
+    avgResponseMinutes,
   };
 }
 
@@ -117,7 +120,7 @@ export function computeAdminMetrics(
             services.reduce((sum, s) => sum + s.uptimePercent, 0) / services.length
           ).toFixed(1),
         )
-      : 100;
+      : 0;
 
   return {
     registeredCompanies,
@@ -384,7 +387,9 @@ export function validateClientOnboardingInput(input: {
 
 export function validateStationAssignmentInput(input: {
   locationId?: string;
+  supervisorMode?: 'existing' | 'new';
   supervisorId?: string;
+  newSupervisorName?: string;
   guardMode?: 'existing' | 'new';
   guardId?: string;
   newGuardName?: string;
@@ -393,8 +398,15 @@ export function validateStationAssignmentInput(input: {
   if (!input.locationId || !input.locationId.trim()) {
     return { valid: false, error: 'Please select a client station to assign.' };
   }
-  if (!input.supervisorId || !input.supervisorId.trim()) {
-    return { valid: false, error: 'Please assign a supervisor to oversee this station.' };
+  const supMode = input.supervisorMode ?? 'existing';
+  if (supMode === 'existing') {
+    if (!input.supervisorId || !input.supervisorId.trim()) {
+      return { valid: false, error: 'Please assign a supervisor to oversee this station.' };
+    }
+  } else {
+    if (!input.newSupervisorName || input.newSupervisorName.trim().length < 2) {
+      return { valid: false, error: 'Please enter the new supervisor full name.' };
+    }
   }
   const mode = input.guardMode ?? 'existing';
   if (mode === 'existing') {

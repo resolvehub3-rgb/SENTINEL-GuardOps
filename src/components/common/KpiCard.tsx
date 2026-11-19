@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export type KpiTone = 'navy' | 'emerald' | 'amber' | 'indigo';
@@ -57,6 +57,8 @@ export function KpiCard({
         <div className="mt-2.5 flex items-center gap-1 text-xs font-medium text-white/90 tabular-nums">
           {trendDirection === 'down' ? (
             <ArrowDownRight className="w-3.5 h-3.5 shrink-0" />
+          ) : trendDirection === 'flat' ? (
+            <Minus className="w-3.5 h-3.5 shrink-0 opacity-80" />
           ) : (
             <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
           )}

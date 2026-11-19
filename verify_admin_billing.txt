@@ -1,0 +1,6 @@
+### Result
+"PLATFORM\n\nDashboard\nCompanies\nCompany Approvals\nPlatform Users\n\nREVENUE & MESSAGING\n\nSubscriptions\nBilling\nSMS Usage\n\nGOVERNANCE & INFRASTRUCTURE\n\nNotifications\nSupport\nAudit Logs\nSystem Health\nSettings\nLogout\nSuper Admin Dashboard\n|\n\nPlatform Overview\n\nSA\nSA\nPlatform Billing & Invoices\n\nTrack monthly invoice collections, generate company billing statements, and reconcile overdue accounts.\n\nGenerate Invoice\n\nTotal Invoiced Volume\n\nGH₵0\n\n0 invoices issued\n\nCollected Revenue (Paid)\n\nGH₵0\n\n0 paid · 0% rate\n\nPending Collection\n\nGH₵0\n\n0 awaiting payment\n\nOverdue Balance\n\nGH₵0\n\n0 overdue notice\nMonthly Billing Revenue Trend\n\nPlatform recurring revenue trajectory\n\nNo billing revenue data yet. Generate or pay an invoice to plot monthly revenue.\nCollection Health\n\nSettlement progress across current cycle invoices\n\nSettled Percentage\n0%\nPaid Invoices\n0\nPending Invoices\n0\nOverdue Invoices\n0\nAll Invoices\nPaid\nPending\nOverdue\nINVOICE #\tCOMPANY\tPLAN\tBILLING PERIOD\tISSUED\tAMOUNT\tSTATUS\tACTIONS\nNo matching invoices found."
+### Ran Playwright code
+```js
+await page.evaluate('() => document.body.innerText');
+```

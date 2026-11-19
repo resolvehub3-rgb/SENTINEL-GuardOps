@@ -27,7 +27,7 @@ const PORTALS: Array<{
   {
     role: 'company',
     title: 'Company Owner',
-    subtitle: 'Acme Security Ltd',
+    subtitle: 'Operations Command',
     icon: Building2,
   },
   {

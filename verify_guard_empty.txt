@@ -1,0 +1,6 @@
+### Result
+"SECURITY GUARD · COMPANY WORKSPACE\n\nNo Station Assignment Yet\n\nYour security company management has not assigned you to a client station or duty post yet. Once assigned, your post and shift controls will appear here.\n\nHome\nOccurrences\nIncidents\nHistory\nProfile"
+### Ran Playwright code
+```js
+await page.evaluate('() => document.body.innerText');
+```

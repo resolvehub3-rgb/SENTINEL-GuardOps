@@ -1,0 +1,6 @@
+### Result
+"COMMAND\n\nDashboard\nLive Map\nAnalytics\n\nWORKFORCE & SITES\n\nClients\nLocations / Posts\nGuards\nSupervisors\nAssignments\nDuty Scheduling\nAttendance\n\nREPORTS & OVERSIGHT\n\nOccurrence Book\nIncident Reports\nShift Reports\nReport Reviews\nOwner Verification\n\nORGANIZATION\n\nAnnouncements\nNotifications\nReports\nSubscription & Billing\nSettings\nLogout\nSecurity Company Dashboard\n|\n\nComplete Security Operations Control\n\nCO\nCompany Workspace\nClient Accounts\n\nCompany-registered client contracts, station pricing, and assigned supervisors & guards · GH₵0/mo total value\n\nExport CSV\nAdd Client\nNo client accounts yet\n\nRegister your first client account, station address, and contract pricing to assign supervisors and guards."
+### Ran Playwright code
+```js
+await page.evaluate('() => document.body.innerText');
+```

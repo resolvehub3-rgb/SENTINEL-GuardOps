@@ -46,8 +46,10 @@ export function AdminBillingInvoices({
 
   // Create invoice modal state
   const [companyId, setCompanyId] = useState(companies[0]?.id ?? '');
-  const [period, setPeriod] = useState('Nov 2026');
-  const [amount, setAmount] = useState('650');
+  const [period, setPeriod] = useState(() =>
+    new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+  );
+  const [amount, setAmount] = useState('');
   const [invoiceStatus, setInvoiceStatus] = useState<'Pending' | 'Paid'>('Pending');
   const [submitting, setSubmitting] = useState(false);
 
@@ -71,7 +73,7 @@ export function AdminBillingInvoices({
   const collectionRate =
     totals.totalBilled > 0
       ? Math.round((totals.collectedAmount / totals.totalBilled) * 100)
-      : 100;
+      : 0;
 
   const handleUpdateInvoiceStatus = async (
     invoiceId: string,
@@ -145,7 +147,10 @@ export function AdminBillingInvoices({
         <button
           type="button"
           onClick={() => {
-            if (!companyId && companies[0]) setCompanyId(companies[0].id);
+            if (!companyId && companies[0]) {
+              setCompanyId(companies[0].id);
+              if (companies[0].monthlyFee > 0) setAmount(String(companies[0].monthlyFee));
+            }
             setCreateOpen(true);
           }}
           className="h-10 px-4 rounded-xl bg-[#10A878] hover:bg-[#0E9369] text-white text-xs font-bold inline-flex items-center gap-2 cursor-pointer transition-colors"
@@ -204,23 +209,29 @@ export function AdminBillingInvoices({
             <CreditCard className="w-4 h-4 text-[#10A878]" />
           </div>
           <div className="h-48 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={billingSeries}>
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94A3B8' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} width={48} />
-                <Tooltip
-                  formatter={(value) => [`GH₵${Number(value).toLocaleString()}`, 'Revenue']}
-                  contentStyle={{
-                    backgroundColor: '#10213D',
-                    borderColor: '#1E2E4A',
-                    borderRadius: 8,
-                    color: '#fff',
-                    fontSize: 12,
-                  }}
-                />
-                <Bar dataKey="revenue" fill="#10A878" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {billingSeries.length === 0 ? (
+              <div className="h-full rounded-lg border border-dashed border-slate-200 dark:border-[#1E2E4A] flex items-center justify-center text-xs text-slate-400">
+                No billing revenue data yet. Generate or pay an invoice to plot monthly revenue.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={billingSeries}>
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94A3B8' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} width={48} />
+                  <Tooltip
+                    formatter={(value) => [`GH₵${Number(value).toLocaleString()}`, 'Revenue']}
+                    contentStyle={{
+                      backgroundColor: '#10213D',
+                      borderColor: '#1E2E4A',
+                      borderRadius: 8,
+                      color: '#fff',
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar dataKey="revenue" fill="#10A878" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </section>
 
@@ -465,22 +476,28 @@ export function AdminBillingInvoices({
             >
               Security Company
             </label>
-            <select
-              id="inv-company"
-              value={companyId}
-              onChange={(e) => {
-                setCompanyId(e.target.value);
-                const found = companies.find((c) => c.id === e.target.value);
-                if (found && found.monthlyFee > 0) setAmount(String(found.monthlyFee));
-              }}
-              className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-[#24395D] bg-slate-50 dark:bg-[#0D182D] text-slate-900 dark:text-white"
-            >
-              {companies.slice(0, 20).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.planName})
-                </option>
-              ))}
-            </select>
+            {companies.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 dark:border-[#24395D] bg-slate-50 dark:bg-[#0D182D] px-3 py-3 text-slate-400">
+                No registered security companies yet. Register or approve a company first to issue an invoice.
+              </div>
+            ) : (
+              <select
+                id="inv-company"
+                value={companyId}
+                onChange={(e) => {
+                  setCompanyId(e.target.value);
+                  const found = companies.find((c) => c.id === e.target.value);
+                  if (found && found.monthlyFee > 0) setAmount(String(found.monthlyFee));
+                }}
+                className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-[#24395D] bg-slate-50 dark:bg-[#0D182D] text-slate-900 dark:text-white"
+              >
+                {companies.slice(0, 20).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.planName})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -547,7 +564,7 @@ export function AdminBillingInvoices({
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !companyId}
               className="h-10 px-5 rounded-xl bg-[#10A878] hover:bg-[#0E9369] disabled:opacity-60 text-white font-bold cursor-pointer"
             >
               {submitting ? 'Creating...' : 'Create Invoice'}

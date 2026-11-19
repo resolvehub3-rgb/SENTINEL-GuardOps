@@ -223,8 +223,8 @@ export function SupervisorPortal() {
             <KpiCard
               label="Assigned Guards"
               value={data.kpis.assignedGuards}
-              trend="1% shift allocation"
-              trendDirection="up"
+              trend="Assigned to your posts"
+              trendDirection={data.kpis.assignedGuards > 0 ? 'up' : 'flat'}
               tone="navy"
               icon={Shield}
               onClick={() => setActiveRoute('my-guards')}
@@ -233,7 +233,7 @@ export function SupervisorPortal() {
               label="Guards On Duty"
               value={data.kpis.guardsOnDuty}
               trend="Active across posts"
-              trendDirection="up"
+              trendDirection={data.kpis.guardsOnDuty > 0 ? 'up' : 'flat'}
               tone="emerald"
               icon={User}
               onClick={() => setActiveRoute('my-guards')}
@@ -241,8 +241,8 @@ export function SupervisorPortal() {
             <KpiCard
               label="Incidents Requiring Attention"
               value={data.kpis.incidentsNeedingAttention}
-              trend="1% vs yesterday"
-              trendDirection="down"
+              trend={`${data.incidents.length} total logged`}
+              trendDirection={data.kpis.incidentsNeedingAttention > 0 ? 'down' : 'flat'}
               tone="amber"
               icon={AlertTriangle}
               onClick={() => setActiveRoute('incidents')}
@@ -250,8 +250,8 @@ export function SupervisorPortal() {
             <KpiCard
               label="Reports Awaiting Review"
               value={data.kpis.reportsAwaitingReview}
-              trend="Queue ready"
-              trendDirection="up"
+              trend={`${data.shiftReports.length} total submitted`}
+              trendDirection={data.kpis.reportsAwaitingReview > 0 ? 'up' : 'flat'}
               tone="indigo"
               icon={ClipboardCheck}
               onClick={() => setActiveRoute('report-reviews')}
@@ -295,8 +295,17 @@ export function SupervisorPortal() {
 
                 {filteredGuards.length === 0 ? (
                   <EmptyState
-                    title="No guards match filter"
-                    description="Adjust search or duty status filter."
+                    title={
+                      data.assignedGuards.length === 0
+                        ? 'No guards assigned yet'
+                        : 'No guards match filter'
+                    }
+                    description={
+                      data.assignedGuards.length === 0
+                        ? 'Guards assigned to your supervision stations will appear here.'
+                        : 'Adjust search or duty status filter.'
+                    }
+                    icon={Shield}
                   />
                 ) : (
                   <div className="overflow-x-auto">
@@ -371,37 +380,45 @@ export function SupervisorPortal() {
                     View All →
                   </button>
                 </div>
-                <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A]">
-                  {data.occurrences.slice(0, 4).map((occ) => (
-                    <div
-                      key={occ.id}
-                      className="py-3 first:pt-0 last:pb-0 flex items-start justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                          <span className="font-bold text-[#10A878]">{occ.category}</span>
-                          <span>·</span>
-                          <span>{occ.createdAt}</span>
-                          <span>·</span>
-                          <span>{occ.locationName}</span>
+                {data.occurrences.length === 0 ? (
+                  <EmptyState
+                    title="No live occurrences yet"
+                    description="Patrol observations submitted by your assigned guards will appear here."
+                    icon={Radio}
+                  />
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A]">
+                    {data.occurrences.slice(0, 4).map((occ) => (
+                      <div
+                        key={occ.id}
+                        className="py-3 first:pt-0 last:pb-0 flex items-start justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                            <span className="font-bold text-[#10A878]">{occ.category}</span>
+                            <span>·</span>
+                            <span>{occ.createdAt}</span>
+                            <span>·</span>
+                            <span>{occ.locationName}</span>
+                          </div>
+                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 mt-0.5">
+                            {occ.description}
+                          </p>
                         </div>
-                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 mt-0.5">
-                          {occ.description}
-                        </p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <StatusBadge label={occ.status} compact />
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOccurrence(occ)}
+                            className="text-xs font-semibold text-slate-500 hover:text-[#10A878]"
+                          >
+                            Open
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <StatusBadge label={occ.status} compact />
-                        <button
-                          type="button"
-                          onClick={() => setSelectedOccurrence(occ)}
-                          className="text-xs font-semibold text-slate-500 hover:text-[#10A878]"
-                        >
-                          Open
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </section>
             </div>
 
@@ -429,29 +446,37 @@ export function SupervisorPortal() {
                     ))}
                   </div>
                 </div>
-                <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A] text-xs">
-                  {data.schedules.map((sch) => (
-                    <div key={sch.id} className="py-2.5 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-bold text-slate-900 dark:text-white">
-                          {sch.shiftType} Shift · {sch.locationName}
-                        </p>
-                        <p className="text-[11px] text-slate-400">
-                          {scheduleRange === 'week' ? `${sch.date} · ` : ''}
-                          {sch.assignedGuardNames.join(', ')}
-                        </p>
+                {data.schedules.length === 0 ? (
+                  <EmptyState
+                    title="No shifts scheduled"
+                    description="Upcoming shift assignments for your supervised sites will appear here."
+                    icon={CalendarClock}
+                  />
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A] text-xs">
+                    {data.schedules.map((sch) => (
+                      <div key={sch.id} className="py-2.5 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-bold text-slate-900 dark:text-white">
+                            {sch.shiftType} Shift · {sch.locationName}
+                          </p>
+                          <p className="text-[11px] text-slate-400">
+                            {scheduleRange === 'week' ? `${sch.date} · ` : ''}
+                            {sch.assignedGuardNames.join(', ')}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-mono-tabular font-semibold">
+                            {sch.startTime} – {sch.endTime}
+                          </p>
+                          <p className="text-[11px] text-[#10A878] font-semibold">
+                            {sch.requiredGuards} Guards
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <p className="font-mono-tabular font-semibold">
-                          {sch.startTime} – {sch.endTime}
-                        </p>
-                        <p className="text-[11px] text-[#10A878] font-semibold">
-                          {sch.requiredGuards} Guards
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </section>
 
               <section className={cardCls}>
@@ -463,30 +488,38 @@ export function SupervisorPortal() {
                     {data.kpis.incidentsNeedingAttention}
                   </span>
                 </div>
-                <div className="space-y-2.5">
-                  {data.incidents
-                    .filter((i) => i.status !== 'Resolved')
-                    .slice(0, 4)
-                    .map((inc) => (
-                      <button
-                        key={inc.id}
-                        type="button"
-                        onClick={() => setSelectedIncident(inc)}
-                        className="w-full text-left p-3 rounded-xl border border-slate-200 dark:border-[#1E2E4A] bg-slate-50/70 dark:bg-[#0D182D] hover:border-[#10A878] flex items-center justify-between gap-3 transition-colors"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <StatusBadge label={inc.severity} compact />
-                            <span className="text-[11px] text-slate-400">{inc.reportedAt}</span>
+                {data.incidents.filter((i) => i.status !== 'Resolved').length === 0 ? (
+                  <EmptyState
+                    title="No open incidents"
+                    description="Active incidents escalated from your assigned sites will appear here."
+                    icon={ShieldAlert}
+                  />
+                ) : (
+                  <div className="space-y-2.5">
+                    {data.incidents
+                      .filter((i) => i.status !== 'Resolved')
+                      .slice(0, 4)
+                      .map((inc) => (
+                        <button
+                          key={inc.id}
+                          type="button"
+                          onClick={() => setSelectedIncident(inc)}
+                          className="w-full text-left p-3 rounded-xl border border-slate-200 dark:border-[#1E2E4A] bg-slate-50/70 dark:bg-[#0D182D] hover:border-[#10A878] flex items-center justify-between gap-3 transition-colors"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <StatusBadge label={inc.severity} compact />
+                              <span className="text-[11px] text-slate-400">{inc.reportedAt}</span>
+                            </div>
+                            <p className="text-xs font-bold text-slate-900 dark:text-white mt-1 truncate">
+                              {inc.type} — {inc.locationName}
+                            </p>
                           </div>
-                          <p className="text-xs font-bold text-slate-900 dark:text-white mt-1 truncate">
-                            {inc.type} — {inc.locationName}
-                          </p>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                      </button>
-                    ))}
-                </div>
+                          <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                        </button>
+                      ))}
+                  </div>
+                )}
               </section>
 
               <section className={cardCls}>
@@ -507,33 +540,41 @@ export function SupervisorPortal() {
                     View All →
                   </button>
                 </div>
-                <div className="space-y-2.5">
-                  {data.shiftReports.slice(0, 4).map((rep) => (
-                    <div
-                      key={rep.id}
-                      className="p-3 rounded-xl border border-slate-200 dark:border-[#1E2E4A] bg-slate-50/70 dark:bg-[#0D182D] flex items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                          {rep.shiftType} Shift — {rep.locationName}
-                        </p>
-                        <p className="text-[11px] text-slate-400 truncate">
-                          {rep.guardName} · {rep.shiftDate} · {rep.submittedAt}
-                        </p>
+                {data.shiftReports.length === 0 ? (
+                  <EmptyState
+                    title="No shift reports to review"
+                    description="Closed guard shift reports awaiting your verification will appear here."
+                    icon={ClipboardCheck}
+                  />
+                ) : (
+                  <div className="space-y-2.5">
+                    {data.shiftReports.slice(0, 4).map((rep) => (
+                      <div
+                        key={rep.id}
+                        className="p-3 rounded-xl border border-slate-200 dark:border-[#1E2E4A] bg-slate-50/70 dark:bg-[#0D182D] flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                            {rep.shiftType} Shift — {rep.locationName}
+                          </p>
+                          <p className="text-[11px] text-slate-400 truncate">
+                            {rep.guardName} · {rep.shiftDate} · {rep.submittedAt}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <StatusBadge label={rep.status} compact />
+                          <button
+                            type="button"
+                            onClick={() => setReviewingReport(rep)}
+                            className="px-2.5 py-1.5 rounded-lg bg-[#10A878] hover:bg-[#0D9468] text-white text-[11px] font-semibold"
+                          >
+                            Review Report
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <StatusBadge label={rep.status} compact />
-                        <button
-                          type="button"
-                          onClick={() => setReviewingReport(rep)}
-                          className="px-2.5 py-1.5 rounded-lg bg-[#10A878] hover:bg-[#0D9468] text-white text-[11px] font-semibold"
-                        >
-                          Review Report
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </section>
             </div>
           </div>
@@ -548,212 +589,278 @@ export function SupervisorPortal() {
               Inspect submitted guard shift reports, finalize reviews, or return with correction notes
             </p>
           </div>
-          <div className="space-y-3">
-            {data.shiftReports.map((rep) => (
-              <div
-                key={rep.id}
-                className={`${cardCls} flex flex-wrap items-center justify-between gap-4`}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono-tabular text-xs font-bold text-slate-400">
-                      {rep.id.toUpperCase()}
-                    </span>
-                    <StatusBadge label={rep.status} compact />
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-1.5">
-                    {rep.guardName} ({rep.employeeId}) — {rep.locationName}
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    {rep.shiftType} Shift · {rep.shiftDate} · Submitted {rep.submittedAt}
-                  </p>
-                  {rep.reviewReason && (
-                    <p className="text-xs text-amber-500 mt-1">
-                      Correction note: {rep.reviewReason}
-                    </p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setReviewingReport(rep)}
-                  className="px-4 py-2 rounded-lg bg-[#10A878] hover:bg-[#0D9468] text-white text-xs font-semibold shrink-0"
+          {data.shiftReports.length === 0 ? (
+            <div className={cardCls}>
+              <EmptyState
+                title="No shift reports submitted yet"
+                description="Shift reports closed by your assigned guards will appear here for review."
+                icon={FileText}
+              />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.shiftReports.map((rep) => (
+                <div
+                  key={rep.id}
+                  className={`${cardCls} flex flex-wrap items-center justify-between gap-4`}
                 >
-                  Review Report
-                </button>
-              </div>
-            ))}
-          </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono-tabular text-xs font-bold text-slate-400">
+                        {rep.id.toUpperCase()}
+                      </span>
+                      <StatusBadge label={rep.status} compact />
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-1.5">
+                      {rep.guardName} ({rep.employeeId}) — {rep.locationName}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {rep.shiftType} Shift · {rep.shiftDate} · Submitted {rep.submittedAt}
+                    </p>
+                    {rep.reviewReason && (
+                      <p className="text-xs text-amber-500 mt-1">
+                        Correction note: {rep.reviewReason}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReviewingReport(rep)}
+                    className="px-4 py-2 rounded-lg bg-[#10A878] hover:bg-[#0D9468] text-white text-xs font-semibold shrink-0"
+                  >
+                    Review Report
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : activeRoute === 'my-guards' ? (
         <div className="space-y-5">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">
             My Assigned Guards
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {data.assignedGuards.map((g) => (
-              <div key={g.id} className={cardCls}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={g.avatar}
-                      alt={g.name}
-                      referrerPolicy="no-referrer"
-                      className="w-11 h-11 rounded-full object-cover"
-                    />
-                    <div>
-                      <p className="text-sm font-bold">{g.name}</p>
-                      <p className="text-xs font-mono-tabular text-slate-400">{g.employeeId}</p>
+          {data.assignedGuards.length === 0 ? (
+            <div className={cardCls}>
+              <EmptyState
+                title="No guards assigned yet"
+                description="Guards assigned to your supervision stations will appear here."
+                icon={Shield}
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {data.assignedGuards.map((g) => (
+                <div key={g.id} className={cardCls}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={g.avatar}
+                        alt={g.name}
+                        referrerPolicy="no-referrer"
+                        className="w-11 h-11 rounded-full object-cover"
+                      />
+                      <div>
+                        <p className="text-sm font-bold">{g.name}</p>
+                        <p className="text-xs font-mono-tabular text-slate-400">{g.employeeId}</p>
+                      </div>
                     </div>
+                    <StatusBadge label={g.status} compact />
                   </div>
-                  <StatusBadge label={g.status} compact />
+                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-[#1D2D4A] text-xs space-y-1">
+                    <p>
+                      <span className="text-slate-400">Location: </span>
+                      <span className="font-semibold">{g.locationName} ({g.postName})</span>
+                    </p>
+                    <p>
+                      <span className="text-slate-400">Last Activity: </span>
+                      <span>{g.lastActivity}</span>
+                    </p>
+                  </div>
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-[#1D2D4A] text-xs space-y-1">
-                  <p>
-                    <span className="text-slate-400">Location: </span>
-                    <span className="font-semibold">{g.locationName} ({g.postName})</span>
-                  </p>
-                  <p>
-                    <span className="text-slate-400">Last Activity: </span>
-                    <span>{g.lastActivity}</span>
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : activeRoute === 'my-locations' ? (
         <div className="space-y-5">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">
             My Assigned Locations
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data.assignedLocations.map((loc) => (
-              <div key={loc.id} className={cardCls}>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="text-sm font-bold">{loc.name}</h3>
-                    <p className="text-xs text-slate-400">{loc.address}</p>
+          {data.assignedLocations.length === 0 ? (
+            <div className={cardCls}>
+              <EmptyState
+                title="No locations assigned yet"
+                description="Client stations assigned to you by company management will appear here."
+                icon={MapPin}
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {data.assignedLocations.map((loc) => (
+                <div key={loc.id} className={cardCls}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-bold">{loc.name}</h3>
+                      <p className="text-xs text-slate-400">{loc.address}</p>
+                    </div>
+                    <StatusBadge label={loc.status} compact />
                   </div>
-                  <StatusBadge label={loc.status} compact />
+                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-[#1D2D4A] flex justify-between text-xs">
+                    <span>Guards On Duty: {loc.onDutyCount}/{loc.assignedGuardsCount}</span>
+                    <span className="font-bold text-[#10A878] tabular-nums">
+                      Attendance: {loc.attendanceRate}%
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-[#1D2D4A] flex justify-between text-xs">
-                  <span>Guards On Duty: {loc.onDutyCount}/{loc.assignedGuardsCount}</span>
-                  <span className="font-bold text-[#10A878] tabular-nums">
-                    Attendance: {loc.attendanceRate}%
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : activeRoute === 'schedules' ? (
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">Duty Schedules</h2>
           <div className={cardCls}>
-            <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A] text-xs">
-              {data.schedules.map((sch) => (
-                <div key={sch.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-bold text-sm">
-                      {sch.locationName} — {sch.shiftType} Shift
-                    </p>
-                    <p className="text-slate-400">
-                      {sch.date} · {sch.startTime} to {sch.endTime} · {sch.assignedGuardNames.join(', ')}
-                    </p>
+            {data.schedules.length === 0 ? (
+              <EmptyState
+                title="No duty schedules yet"
+                description="Scheduled shifts for your assigned stations will appear here."
+                icon={CalendarClock}
+              />
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A] text-xs">
+                {data.schedules.map((sch) => (
+                  <div key={sch.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-sm">
+                        {sch.locationName} — {sch.shiftType} Shift
+                      </p>
+                      <p className="text-slate-400">
+                        {sch.date} · {sch.startTime} to {sch.endTime} · {sch.assignedGuardNames.join(', ')}
+                      </p>
+                    </div>
+                    <StatusBadge label={sch.status} compact />
                   </div>
-                  <StatusBadge label={sch.status} compact />
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : activeRoute === 'attendance' ? (
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">Team Attendance</h2>
           <div className={cardCls}>
-            <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A] text-xs">
-              {data.attendance.map((att) => (
-                <div key={att.id} className="py-3 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-bold">{att.guardName} ({att.employeeId})</p>
-                    <p className="text-slate-400">
-                      {att.locationName} · Scheduled {att.scheduledStart} · Check-in {att.actualCheckIn ?? 'Pending'}
-                    </p>
+            {data.attendance.length === 0 ? (
+              <EmptyState
+                title="No team attendance logs yet"
+                description="Guard check-ins and shift completion timestamps appear here."
+                icon={CalendarCheck}
+              />
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A] text-xs">
+                {data.attendance.map((att) => (
+                  <div key={att.id} className="py-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-bold">{att.guardName} ({att.employeeId})</p>
+                      <p className="text-slate-400">
+                        {att.locationName} · Scheduled {att.scheduledStart} · Check-in {att.actualCheckIn ?? 'Pending'}
+                      </p>
+                    </div>
+                    <StatusBadge label={att.status} compact />
                   </div>
-                  <StatusBadge label={att.status} compact />
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : activeRoute === 'occurrences' ? (
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">Live Occurrences</h2>
-          <div className="space-y-3">
-            {data.occurrences.map((occ) => (
-              <div key={occ.id} className={`${cardCls} flex flex-wrap items-center justify-between gap-4`}>
-                <div>
-                  <span className="text-xs font-bold text-[#10A878]">{occ.category}</span>
-                  <h3 className="text-sm font-bold mt-0.5">{occ.description}</h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {occ.guardName} · {occ.locationName} · {occ.createdAt}
-                  </p>
+          {data.occurrences.length === 0 ? (
+            <div className={cardCls}>
+              <EmptyState
+                title="No occurrences recorded yet"
+                description="Patrol observations logged by your team will appear here."
+                icon={Radio}
+              />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.occurrences.map((occ) => (
+                <div key={occ.id} className={`${cardCls} flex flex-wrap items-center justify-between gap-4`}>
+                  <div>
+                    <span className="text-xs font-bold text-[#10A878]">{occ.category}</span>
+                    <h3 className="text-sm font-bold mt-0.5">{occ.description}</h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {occ.guardName} · {occ.locationName} · {occ.createdAt}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StatusBadge label={occ.status} compact />
+                    {occ.status !== 'Acknowledged' && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await apiRequest(`/api/supervisor/occurrences/${occ.id}/acknowledge`, {
+                            method: 'POST',
+                          });
+                          showToast({ title: 'Occurrence acknowledged', tone: 'success' });
+                          void loadData();
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-[#10A878] text-white text-xs font-semibold"
+                      >
+                        Acknowledge
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge label={occ.status} compact />
-                  {occ.status !== 'Acknowledged' && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await apiRequest(`/api/supervisor/occurrences/${occ.id}/acknowledge`, {
-                          method: 'POST',
-                        });
-                        showToast({ title: 'Occurrence acknowledged', tone: 'success' });
-                        void loadData();
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-[#10A878] text-white text-xs font-semibold"
-                    >
-                      Acknowledge
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : activeRoute === 'incidents' ? (
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">Assigned Incident Reports</h2>
-          <div className="space-y-3">
-            {data.incidents.map((inc) => (
-              <div key={inc.id} className={`${cardCls} flex flex-wrap items-center justify-between gap-4`}>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <StatusBadge label={inc.severity} compact />
-                    <StatusBadge label={inc.status} compact />
+          {data.incidents.length === 0 ? (
+            <div className={cardCls}>
+              <EmptyState
+                title="No incident reports yet"
+                description="Incidents escalated by guards on your assigned sites will appear here."
+                icon={ShieldAlert}
+              />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.incidents.map((inc) => (
+                <div key={inc.id} className={`${cardCls} flex flex-wrap items-center justify-between gap-4`}>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge label={inc.severity} compact />
+                      <StatusBadge label={inc.status} compact />
+                    </div>
+                    <h3 className="text-sm font-bold mt-1.5">{inc.type} — {inc.locationName}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">{inc.description}</p>
                   </div>
-                  <h3 className="text-sm font-bold mt-1.5">{inc.type} — {inc.locationName}</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">{inc.description}</p>
+                  {inc.status !== 'Resolved' && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await apiRequest(`/api/company/incidents/${inc.id}/status`, {
+                          method: 'POST',
+                          body: JSON.stringify({ status: 'Resolved' }),
+                        });
+                        showToast({ title: 'Incident marked resolved', tone: 'success' });
+                        void loadData();
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-[#10A878] text-white text-xs font-semibold"
+                    >
+                      Resolve
+                    </button>
+                  )}
                 </div>
-                {inc.status !== 'Resolved' && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await apiRequest(`/api/company/incidents/${inc.id}/status`, {
-                        method: 'POST',
-                        body: JSON.stringify({ status: 'Resolved' }),
-                      });
-                      showToast({ title: 'Incident marked resolved', tone: 'success' });
-                      void loadData();
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-[#10A878] text-white text-xs font-semibold"
-                  >
-                    Resolve
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : activeRoute === 'announcements' ? (
         <div className="space-y-5 max-w-2xl">
@@ -797,38 +904,58 @@ export function SupervisorPortal() {
               Publish Briefing
             </button>
           </form>
-          <div className="space-y-3">
-            {data.announcements.map((ann) => (
-              <div key={ann.id} className={cardCls}>
-                <h3 className="text-sm font-bold">{ann.title}</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">{ann.body}</p>
-                <p className="text-[11px] text-slate-400 mt-2">{ann.author} · {ann.createdAt}</p>
-              </div>
-            ))}
-          </div>
+          {data.announcements.length === 0 ? (
+            <div className={cardCls}>
+              <EmptyState
+                title="No briefings posted yet"
+                description="Publish a shift briefing above or view directives from company management here."
+                icon={Megaphone}
+              />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.announcements.map((ann) => (
+                <div key={ann.id} className={cardCls}>
+                  <h3 className="text-sm font-bold">{ann.title}</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">{ann.body}</p>
+                  <p className="text-[11px] text-slate-400 mt-2">{ann.author} · {ann.createdAt}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : activeRoute === 'notifications' ? (
         <div className="space-y-3">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">Notifications</h2>
-          {notifications.map((n) => (
-            <div key={n.id} className={`${cardCls} flex items-center justify-between gap-4`}>
-              <div>
-                <p className="text-sm font-bold">{n.title}</p>
-                <p className="text-xs text-slate-400">{n.message}</p>
-              </div>
-              {!n.read ? (
-                <button
-                  type="button"
-                  onClick={() => void handleMarkNotificationRead(n.id)}
-                  className="px-3 py-1.5 rounded-lg bg-[#10A878]/15 text-[#10A878] text-xs font-semibold"
-                >
-                  Mark Read
-                </button>
-              ) : (
-                <StatusBadge label="Read" tone="slate" compact />
-              )}
+          {notifications.length === 0 ? (
+            <div className={cardCls}>
+              <EmptyState
+                title="No notifications yet"
+                description="Station assignments and guard escalations will appear here."
+                icon={Bell}
+              />
             </div>
-          ))}
+          ) : (
+            notifications.map((n) => (
+              <div key={n.id} className={`${cardCls} flex items-center justify-between gap-4`}>
+                <div>
+                  <p className="text-sm font-bold">{n.title}</p>
+                  <p className="text-xs text-slate-400">{n.message}</p>
+                </div>
+                {!n.read ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleMarkNotificationRead(n.id)}
+                    className="px-3 py-1.5 rounded-lg bg-[#10A878]/15 text-[#10A878] text-xs font-semibold"
+                  >
+                    Mark Read
+                  </button>
+                ) : (
+                  <StatusBadge label="Read" tone="slate" compact />
+                )}
+              </div>
+            ))
+          )}
         </div>
       ) : (
         <div className={`${cardCls} max-w-xl space-y-4 text-xs`}>

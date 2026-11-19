@@ -1,0 +1,6 @@
+### Result
+"SG\nSecurity Guard\n\nGRD-001\n\nCompany Workspace\n\nAssigned Post\nUnassigned\nSupervisor\nUnassigned\nAttendance Score\n0%\nSign Out\nHome\nOccurrences\nIncidents\nHistory\nProfile"
+### Ran Playwright code
+```js
+await page.evaluate('() => document.body.innerText');
+```

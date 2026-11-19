@@ -177,67 +177,75 @@ export function AdminSubscriptionsView({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-[#1A2A46] text-xs">
-              {filtered.slice(0, 15).map((comp) => {
-                const smsPct = Math.min(
-                  100,
-                  Math.round((comp.smsCreditsUsed / Math.max(1, comp.smsCreditsLimit)) * 100),
-                );
-                return (
-                  <tr key={comp.id} className="hover:bg-slate-50/70 dark:hover:bg-white/[0.02]">
-                    <td className="py-3 pr-4">
-                      <p className="font-bold text-slate-900 dark:text-white">{comp.name}</p>
-                      <p className="text-[11px] text-slate-400">{comp.contactEmail}</p>
-                    </td>
-                    <td className="py-3 px-3 font-semibold text-slate-700 dark:text-slate-200">
-                      {comp.planName}
-                    </td>
-                    <td className="py-3 px-3 text-right tabular-nums text-slate-600 dark:text-slate-300">
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="w-3 h-3 text-slate-400" />
-                        {comp.guardsCount} / {comp.locationsCount}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 w-36">
-                      <div className="flex justify-between text-[10px] text-slate-400 mb-1 tabular-nums">
-                        <span>{comp.smsCreditsUsed}</span>
-                        <span>{smsPct}%</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-slate-100 dark:bg-[#0D182D] overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-[#10A878]"
-                          style={{ width: `${smsPct}%` }}
-                        />
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-right font-bold tabular-nums text-slate-900 dark:text-white">
-                      GH₵{comp.monthlyFee.toLocaleString()}
-                    </td>
-                    <td className="py-3 px-3">
-                      <StatusBadge label={comp.subscriptionStatus} compact />
-                    </td>
-                    <td className="py-3 pl-3 text-right">
-                      <div className="inline-flex items-center gap-1.5">
-                        {comp.subscriptionStatus !== 'Active' && (
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-10 text-center text-slate-400">
+                    No company subscriptions yet.
+                  </td>
+                </tr>
+              ) : (
+                filtered.slice(0, 15).map((comp) => {
+                  const smsPct = Math.min(
+                    100,
+                    Math.round((comp.smsCreditsUsed / Math.max(1, comp.smsCreditsLimit)) * 100),
+                  );
+                  return (
+                    <tr key={comp.id} className="hover:bg-slate-50/70 dark:hover:bg-white/[0.02]">
+                      <td className="py-3 pr-4">
+                        <p className="font-bold text-slate-900 dark:text-white">{comp.name}</p>
+                        <p className="text-[11px] text-slate-400">{comp.contactEmail}</p>
+                      </td>
+                      <td className="py-3 px-3 font-semibold text-slate-700 dark:text-slate-200">
+                        {comp.planName}
+                      </td>
+                      <td className="py-3 px-3 text-right tabular-nums text-slate-600 dark:text-slate-300">
+                        <span className="inline-flex items-center gap-1">
+                          <Users className="w-3 h-3 text-slate-400" />
+                          {comp.guardsCount} / {comp.locationsCount}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 w-36">
+                        <div className="flex justify-between text-[10px] text-slate-400 mb-1 tabular-nums">
+                          <span>{comp.smsCreditsUsed}</span>
+                          <span>{smsPct}%</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-slate-100 dark:bg-[#0D182D] overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-[#10A878]"
+                            style={{ width: `${smsPct}%` }}
+                          />
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold tabular-nums text-slate-900 dark:text-white">
+                        GH₵{comp.monthlyFee.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3">
+                        <StatusBadge label={comp.subscriptionStatus} compact />
+                      </td>
+                      <td className="py-3 pl-3 text-right">
+                        <div className="inline-flex items-center gap-1.5">
+                          {comp.subscriptionStatus !== 'Active' && (
+                            <button
+                              type="button"
+                              onClick={() => void onQuickAction(comp.id, 'renew')}
+                              className="px-2.5 py-1 rounded-lg bg-[#10A878] text-white text-[11px] font-semibold cursor-pointer"
+                            >
+                              Renew
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => void onQuickAction(comp.id, 'renew')}
-                            className="px-2.5 py-1 rounded-lg bg-[#10A878] text-white text-[11px] font-semibold cursor-pointer"
+                            onClick={() => onSelectCompany(comp)}
+                            className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-[#24395D] text-slate-700 dark:text-slate-200 text-[11px] font-semibold hover:border-[#10A878] cursor-pointer"
                           >
-                            Renew
+                            Manage
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => onSelectCompany(comp)}
-                          className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-[#24395D] text-slate-700 dark:text-slate-200 text-[11px] font-semibold hover:border-[#10A878] cursor-pointer"
-                        >
-                          Manage
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

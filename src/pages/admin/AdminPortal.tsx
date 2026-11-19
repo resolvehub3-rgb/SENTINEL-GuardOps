@@ -32,7 +32,7 @@ import type { SidebarNavGroup } from '../../components/common/DashboardShell';
 import { KpiCard } from '../../components/common/KpiCard';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Modal } from '../../components/common/Modal';
-import { LoadingSkeleton } from '../../components/common/EmptyState';
+import { EmptyState, LoadingSkeleton } from '../../components/common/EmptyState';
 import { apiRequest } from '../../services/api';
 import { useRealtime } from '../../context/RealtimeContext';
 import { useToast } from '../../context/ToastContext';
@@ -232,8 +232,8 @@ export function AdminPortal() {
             <KpiCard
               label="Registered Companies"
               value={data.kpis.registeredCompanies}
-              trend="4% this month"
-              trendDirection="up"
+              trend="Active & pending tenants"
+              trendDirection={data.kpis.registeredCompanies > 0 ? 'up' : 'flat'}
               tone="navy"
               icon={Building2}
               onClick={() => setActiveRoute('companies')}
@@ -241,8 +241,8 @@ export function AdminPortal() {
             <KpiCard
               label="Total Guards"
               value={data.kpis.totalGuards.toLocaleString()}
-              trend="6% fleet growth"
-              trendDirection="up"
+              trend="Across registered companies"
+              trendDirection={data.kpis.totalGuards > 0 ? 'up' : 'flat'}
               tone="emerald"
               icon={Shield}
               onClick={() => setActiveRoute('platform-users')}
@@ -250,8 +250,8 @@ export function AdminPortal() {
             <KpiCard
               label="Active Subscriptions"
               value={data.kpis.activeSubscriptions}
-              trend="2% renewals"
-              trendDirection="up"
+              trend="Paid active tenants"
+              trendDirection={data.kpis.activeSubscriptions > 0 ? 'up' : 'flat'}
               tone="amber"
               icon={CreditCard}
               onClick={() => setActiveRoute('subscriptions')}
@@ -259,8 +259,8 @@ export function AdminPortal() {
             <KpiCard
               label="Platform Availability"
               value={`${data.kpis.platformAvailability}%`}
-              trend="0.1% SLA target"
-              trendDirection="up"
+              trend={`${data.systemHealth.length} monitored probes`}
+              trendDirection={data.systemHealth.length > 0 ? 'up' : 'flat'}
               tone="indigo"
               icon={ShieldCheck}
               onClick={() => setActiveRoute('system-health')}
@@ -284,23 +284,27 @@ export function AdminPortal() {
                 </button>
               </div>
               <div className="flex items-center gap-4">
-                <div className="relative w-36 h-36 shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={donutData}
-                        dataKey="value"
-                        innerRadius={42}
-                        outerRadius={60}
-                        paddingAngle={3}
-                        stroke="none"
-                      >
-                        {donutData.map((entry) => (
-                          <Cell key={entry.name} fill={entry.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
+                <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
+                  {data.kpis.registeredCompanies === 0 ? (
+                    <div className="w-28 h-28 rounded-full border-[12px] border-slate-100 dark:border-[#1E2E4A]" />
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={donutData}
+                          dataKey="value"
+                          innerRadius={42}
+                          outerRadius={60}
+                          paddingAngle={3}
+                          stroke="none"
+                        >
+                          {donutData.map((entry) => (
+                            <Cell key={entry.name} fill={entry.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                     <span className="text-xl font-bold tabular-nums text-slate-900 dark:text-white">
                       {data.kpis.registeredCompanies}
@@ -394,26 +398,31 @@ export function AdminPortal() {
                   <span className="text-2xl font-bold tabular-nums text-slate-900 dark:text-white">
                     GH₵{data.kpis.monthlyRevenue.toLocaleString()}
                   </span>
-                  <span className="text-xs font-bold text-[#10A878]">↑ 8%</span>
                 </div>
               </div>
               <div className="h-28 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.billingSeries}>
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94A3B8' }} />
-                    <Tooltip
-                      formatter={(value) => [`GH₵${Number(value).toLocaleString()}`, 'Revenue']}
-                      contentStyle={{
-                        backgroundColor: '#10213D',
-                        borderColor: '#1E2E4A',
-                        borderRadius: 8,
-                        color: '#fff',
-                        fontSize: 11,
-                      }}
-                    />
-                    <Bar dataKey="revenue" fill="#10A878" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {data.billingSeries.length === 0 ? (
+                  <div className="h-full rounded-lg border border-dashed border-slate-200 dark:border-[#1E2E4A] flex items-center justify-center text-xs text-slate-400">
+                    No billing revenue recorded yet
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data.billingSeries}>
+                      <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94A3B8' }} />
+                      <Tooltip
+                        formatter={(value) => [`GH₵${Number(value).toLocaleString()}`, 'Revenue']}
+                        contentStyle={{
+                          backgroundColor: '#10213D',
+                          borderColor: '#1E2E4A',
+                          borderRadius: 8,
+                          color: '#fff',
+                          fontSize: 11,
+                        }}
+                      />
+                      <Bar dataKey="revenue" fill="#10A878" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </section>
           </div>
@@ -433,19 +442,27 @@ export function AdminPortal() {
                   Audit Logs →
                 </button>
               </div>
-              <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A]">
-                {data.platformActivity.slice(0, 5).map((item) => (
-                  <div key={item.id} className="py-2.5 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Activity className="w-3.5 h-3.5 text-[#10A878] shrink-0" />
-                      <span className="truncate font-medium text-slate-800 dark:text-slate-200">
-                        {item.message}
-                      </span>
+              {data.platformActivity.length === 0 ? (
+                <EmptyState
+                  icon={Activity}
+                  title="No platform activity yet"
+                  description="Registrations, approvals, and billing events appear here."
+                />
+              ) : (
+                <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A]">
+                  {data.platformActivity.slice(0, 5).map((item) => (
+                    <div key={item.id} className="py-2.5 flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Activity className="w-3.5 h-3.5 text-[#10A878] shrink-0" />
+                        <span className="truncate font-medium text-slate-800 dark:text-slate-200">
+                          {item.message}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400 shrink-0">{item.timeAgo}</span>
                     </div>
-                    <span className="text-[11px] text-slate-400 shrink-0">{item.timeAgo}</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className={`${cardCls} lg:col-span-4`}>
@@ -454,27 +471,33 @@ export function AdminPortal() {
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                     System Health
                   </h3>
-                  <p className="text-[11px] text-slate-400">Prototype service state indicators</p>
+                  <p className="text-[11px] text-slate-400">Platform subsystem telemetry probes</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setActiveRoute('system-health')}
                   className="text-xs font-semibold text-[#10A878] hover:underline"
                 >
-                  All 7 →
+                  View All →
                 </button>
               </div>
-              <div className="space-y-2.5 text-xs">
-                {data.systemHealth.slice(0, 4).map((svc) => (
-                  <div key={svc.id} className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 font-semibold">
-                      <CheckCircle2 className="w-4 h-4 text-[#10A878]" />
-                      {svc.name}
-                    </span>
-                    <span className="font-semibold text-[#10A878]">{svc.status}</span>
-                  </div>
-                ))}
-              </div>
+              {data.systemHealth.length === 0 ? (
+                <p className="text-xs text-slate-400 py-6 text-center">
+                  No system telemetry probes recorded yet.
+                </p>
+              ) : (
+                <div className="space-y-2.5 text-xs">
+                  {data.systemHealth.slice(0, 4).map((svc) => (
+                    <div key={svc.id} className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 font-semibold">
+                        <CheckCircle2 className="w-4 h-4 text-[#10A878]" />
+                        {svc.name}
+                      </span>
+                      <span className="font-semibold text-[#10A878]">{svc.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className={`${cardCls} lg:col-span-3 flex flex-col justify-between`}>
@@ -498,28 +521,29 @@ export function AdminPortal() {
                   Messages sent · {data.smsSummary.failedMessages} failed
                 </p>
               </div>
-              <div className="mt-4">
-                <div className="flex justify-between text-[11px] text-slate-400 mb-1">
-                  <span>Credits Consumed</span>
-                  <span className="tabular-nums">
-                    {Math.round(
-                      (data.smsSummary.creditsUsed / data.smsSummary.creditsLimit) * 100,
-                    )}
-                    %
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-slate-100 dark:bg-[#0D182D] overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-[#10A878]"
-                    style={{
-                      width: `${Math.min(
+              {(() => {
+                const smsPct =
+                  data.smsSummary.creditsLimit > 0
+                    ? Math.min(
                         100,
-                        (data.smsSummary.creditsUsed / data.smsSummary.creditsLimit) * 100,
-                      )}%`,
-                    }}
-                  />
-                </div>
-              </div>
+                        Math.round((data.smsSummary.creditsUsed / data.smsSummary.creditsLimit) * 100),
+                      )
+                    : 0;
+                return (
+                  <div className="mt-4">
+                    <div className="flex justify-between text-[11px] text-slate-400 mb-1">
+                      <span>Credits Consumed</span>
+                      <span className="tabular-nums">{smsPct}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-slate-100 dark:bg-[#0D182D] overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-[#10A878]"
+                        style={{ width: `${smsPct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
             </section>
           </div>
         </div>
@@ -562,39 +586,53 @@ export function AdminPortal() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-[#1A2A46] text-xs">
-                  {(activeRoute === 'company-approvals'
-                    ? data.onboardingQueue
-                    : filteredCompanies.slice(0, 18)
-                  ).map((comp) => (
-                    <tr key={comp.id} className="hover:bg-slate-50/70 dark:hover:bg-white/3">
-                      <td className="py-3 pr-4">
-                        <p className="font-bold text-slate-900 dark:text-white">{comp.name}</p>
-                        <p className="text-[11px] text-slate-400">Registered {comp.registeredAt}</p>
-                      </td>
-                      <td className="py-3 px-3">
-                        <p className="font-medium">{comp.contactPerson}</p>
-                        <p className="text-[11px] text-slate-400">{comp.contactEmail}</p>
-                      </td>
-                      <td className="py-3 px-3 text-right font-bold tabular-nums">
-                        {comp.guardsCount}
-                      </td>
-                      <td className="py-3 px-3">
-                        <StatusBadge label={comp.approvalStatus} compact />
-                      </td>
-                      <td className="py-3 px-3">
-                        <StatusBadge label={comp.subscriptionStatus} compact />
-                      </td>
-                      <td className="py-3 pl-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedCompany(comp)}
-                          className="px-3 py-1.5 rounded-lg bg-[#10A878] text-white text-[11px] font-semibold"
-                        >
-                          Manage
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {(() => {
+                    const companyRows =
+                      activeRoute === 'company-approvals'
+                        ? data.onboardingQueue
+                        : filteredCompanies.slice(0, 18);
+                    if (companyRows.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={6} className="py-10 text-center text-slate-400">
+                            {activeRoute === 'company-approvals'
+                              ? 'No pending company registration requests.'
+                              : 'No registered security companies yet.'}
+                          </td>
+                        </tr>
+                      );
+                    }
+                    return companyRows.map((comp) => (
+                      <tr key={comp.id} className="hover:bg-slate-50/70 dark:hover:bg-white/3">
+                        <td className="py-3 pr-4">
+                          <p className="font-bold text-slate-900 dark:text-white">{comp.name}</p>
+                          <p className="text-[11px] text-slate-400">Registered {comp.registeredAt}</p>
+                        </td>
+                        <td className="py-3 px-3">
+                          <p className="font-medium">{comp.contactPerson}</p>
+                          <p className="text-[11px] text-slate-400">{comp.contactEmail}</p>
+                        </td>
+                        <td className="py-3 px-3 text-right font-bold tabular-nums">
+                          {comp.guardsCount}
+                        </td>
+                        <td className="py-3 px-3">
+                          <StatusBadge label={comp.approvalStatus} compact />
+                        </td>
+                        <td className="py-3 px-3">
+                          <StatusBadge label={comp.subscriptionStatus} compact />
+                        </td>
+                        <td className="py-3 pl-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCompany(comp)}
+                            className="px-3 py-1.5 rounded-lg bg-[#10A878] text-white text-[11px] font-semibold"
+                          >
+                            Manage
+                          </button>
+                        </td>
+                      </tr>
+                    ));
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -604,20 +642,28 @@ export function AdminPortal() {
         <div className="space-y-4">
           <h2 className="text-lg font-bold">Platform Users</h2>
           <div className={cardCls}>
-            <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A] text-xs">
-              {data.platformUsers.map((u) => (
-                <div key={u.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-bold text-sm">{u.name}</p>
-                    <p className="text-slate-400">{u.email} · {u.companyName} · {u.role}</p>
+            {data.platformUsers.length === 0 ? (
+              <EmptyState
+                icon={Users}
+                title="No platform users yet"
+                description="Registered company owners, supervisors, and guards will appear here."
+              />
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A] text-xs">
+                {data.platformUsers.map((u) => (
+                  <div key={u.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-sm">{u.name}</p>
+                      <p className="text-slate-400">{u.email} · {u.companyName} · {u.role}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-slate-400">{u.lastLogin}</span>
+                      <StatusBadge label={u.status} compact />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-slate-400">{u.lastLogin}</span>
-                    <StatusBadge label={u.status} compact />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : activeRoute === 'subscriptions' ? (
@@ -659,16 +705,24 @@ export function AdminPortal() {
           </div>
           <div className={cardCls}>
             <h3 className="text-sm font-bold mb-3">Company SMS Consumption</h3>
-            <div className="space-y-2.5 text-xs">
-              {data.companies.slice(0, 8).map((c) => (
-                <div key={c.id} className="flex items-center justify-between py-1.5 border-b last:border-b-0 border-slate-100 dark:border-[#1D2D4A]">
-                  <span className="font-semibold">{c.name}</span>
-                  <span className="font-mono-tabular text-slate-400">
-                    {c.smsCreditsUsed.toLocaleString()} / {c.smsCreditsLimit.toLocaleString()} credits
-                  </span>
-                </div>
-              ))}
-            </div>
+            {data.companies.length === 0 ? (
+              <EmptyState
+                icon={MessageSquare}
+                title="No company SMS usage yet"
+                description="SMS credits consumed by registered companies will appear here."
+              />
+            ) : (
+              <div className="space-y-2.5 text-xs">
+                {data.companies.slice(0, 8).map((c) => (
+                  <div key={c.id} className="flex items-center justify-between py-1.5 border-b last:border-b-0 border-slate-100 dark:border-[#1D2D4A]">
+                    <span className="font-semibold">{c.name}</span>
+                    <span className="font-mono-tabular text-slate-400">
+                      {c.smsCreditsUsed.toLocaleString()} / {c.smsCreditsLimit.toLocaleString()} credits
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : activeRoute === 'system-health' ? (
@@ -676,96 +730,134 @@ export function AdminPortal() {
           <div>
             <h2 className="text-lg font-bold">System Health Monitor</h2>
             <p className="text-xs text-slate-400">
-              Demonstration service availability indicators across platform subsystems
+              Live subsystem probes across platform infrastructure
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data.systemHealth.map((svc) => (
-              <div key={svc.id} className={`${cardCls} flex items-center justify-between`}>
-                <div>
-                  <p className="text-sm font-bold">{svc.name}</p>
-                  <p className="text-xs text-slate-400">
-                    {svc.note} · {svc.latencyMs}ms · {svc.uptimePercent}% uptime
-                  </p>
+          {data.systemHealth.length === 0 ? (
+            <div className={cardCls}>
+              <EmptyState
+                icon={Server}
+                title="No system health probes recorded yet"
+                description="Telemetry probes will display once infrastructure checks are ingested."
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {data.systemHealth.map((svc) => (
+                <div key={svc.id} className={`${cardCls} flex items-center justify-between`}>
+                  <div>
+                    <p className="text-sm font-bold">{svc.name}</p>
+                    <p className="text-xs text-slate-400">
+                      {svc.note} · {svc.latencyMs}ms · {svc.uptimePercent}% uptime
+                    </p>
+                  </div>
+                  <StatusBadge label={svc.status} compact />
                 </div>
-                <StatusBadge label={svc.status} compact />
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : activeRoute === 'support' ? (
         <div className="space-y-4">
           <h2 className="text-lg font-bold">Support Tickets</h2>
-          <div className="space-y-3">
-            {data.supportTickets.map((tkt) => (
-              <div key={tkt.id} className={`${cardCls} flex flex-wrap items-center justify-between gap-3`}>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono-tabular text-xs font-bold text-slate-400">{tkt.id}</span>
-                    <StatusBadge label={tkt.priority} compact />
-                    <StatusBadge label={tkt.status} compact />
+          {data.supportTickets.length === 0 ? (
+            <div className={cardCls}>
+              <EmptyState
+                icon={HeadphonesIcon}
+                title="No support tickets yet"
+                description="Company support requests and escalations will appear here."
+              />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.supportTickets.map((tkt) => (
+                <div key={tkt.id} className={`${cardCls} flex flex-wrap items-center justify-between gap-3`}>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono-tabular text-xs font-bold text-slate-400">{tkt.id}</span>
+                      <StatusBadge label={tkt.priority} compact />
+                      <StatusBadge label={tkt.status} compact />
+                    </div>
+                    <p className="text-sm font-bold mt-1">{tkt.subject}</p>
+                    <p className="text-xs text-slate-400">{tkt.companyName} · {tkt.updatedAt}</p>
                   </div>
-                  <p className="text-sm font-bold mt-1">{tkt.subject}</p>
-                  <p className="text-xs text-slate-400">{tkt.companyName} · {tkt.updatedAt}</p>
+                  {tkt.status !== 'Resolved' && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await apiRequest(`/api/admin/tickets/${tkt.id}/resolve`, { method: 'POST' });
+                        showToast({ title: 'Ticket resolved', tone: 'success' });
+                        void loadData();
+                      }}
+                      className="px-3.5 py-2 rounded-lg bg-[#10A878] text-white text-xs font-semibold"
+                    >
+                      Resolve Ticket
+                    </button>
+                  )}
                 </div>
-                {tkt.status !== 'Resolved' && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await apiRequest(`/api/admin/tickets/${tkt.id}/resolve`, { method: 'POST' });
-                      showToast({ title: 'Ticket resolved', tone: 'success' });
-                      void loadData();
-                    }}
-                    className="px-3.5 py-2 rounded-lg bg-[#10A878] text-white text-xs font-semibold"
-                  >
-                    Resolve Ticket
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : activeRoute === 'audit-logs' ? (
         <div className="space-y-4">
           <h2 className="text-lg font-bold">Platform Audit Logs</h2>
           <div className={cardCls}>
-            <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A] text-xs">
-              {data.auditLogs.map((log) => (
-                <div key={log.id} className="py-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="font-bold">{log.action} — {log.target}</p>
-                    <p className="text-slate-400">{log.actor} ({log.role})</p>
+            {data.auditLogs.length === 0 ? (
+              <EmptyState
+                icon={FileText}
+                title="No audit logs yet"
+                description="Administrative actions, approvals, and system changes will be logged here."
+              />
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-[#1D2D4A] text-xs">
+                {data.auditLogs.map((log) => (
+                  <div key={log.id} className="py-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-bold">{log.action} — {log.target}</p>
+                      <p className="text-slate-400">{log.actor} ({log.role})</p>
+                    </div>
+                    <span className="font-mono-tabular text-slate-400">
+                      {log.timestamp} · {log.ipAddress}
+                    </span>
                   </div>
-                  <span className="font-mono-tabular text-slate-400">
-                    {log.timestamp} · {log.ipAddress}
-                  </span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : activeRoute === 'notifications' ? (
         <div className="space-y-3">
           <h2 className="text-lg font-bold">Platform Notifications</h2>
-          {notifications.map((n) => (
-            <div key={n.id} className={`${cardCls} flex items-center justify-between gap-3`}>
-              <div>
-                <p className="text-sm font-bold">{n.title}</p>
-                <p className="text-xs text-slate-400">{n.message}</p>
-              </div>
-              {!n.read ? (
-                <button
-                  type="button"
-                  onClick={() => void handleMarkNotificationRead(n.id)}
-                  className="px-3 py-1.5 rounded-lg bg-[#10A878]/15 text-[#10A878] text-xs font-semibold"
-                >
-                  Mark Read
-                </button>
-              ) : (
-                <StatusBadge label="Read" tone="slate" compact />
-              )}
+          {notifications.length === 0 ? (
+            <div className={cardCls}>
+              <EmptyState
+                icon={Bell}
+                title="No platform notifications yet"
+                description="Alerts and platform notifications will appear here."
+              />
             </div>
-          ))}
+          ) : (
+            notifications.map((n) => (
+              <div key={n.id} className={`${cardCls} flex items-center justify-between gap-3`}>
+                <div>
+                  <p className="text-sm font-bold">{n.title}</p>
+                  <p className="text-xs text-slate-400">{n.message}</p>
+                </div>
+                {!n.read ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleMarkNotificationRead(n.id)}
+                    className="px-3 py-1.5 rounded-lg bg-[#10A878]/15 text-[#10A878] text-xs font-semibold"
+                  >
+                    Mark Read
+                  </button>
+                ) : (
+                  <StatusBadge label="Read" tone="slate" compact />
+                )}
+              </div>
+            ))
+          )}
         </div>
       ) : (
         <AdminMaintenanceSettings

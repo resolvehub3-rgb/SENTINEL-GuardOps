@@ -1,0 +1,6 @@
+### Result
+"PLATFORM\n\nDashboard\nCompanies\nCompany Approvals\nPlatform Users\n\nREVENUE & MESSAGING\n\nSubscriptions\nBilling\nSMS Usage\n\nGOVERNANCE & INFRASTRUCTURE\n\nNotifications\nSupport\nAudit Logs\nSystem Health\nSettings\nLogout\nSuper Admin Dashboard\n|\n\nPlatform Overview\n\nSA\nSA\nSentinel GuardOps Platform Overview\n\nMonitor platform activity, companies, subscriptions and system health.\n\nRegistered Companies\n\n0\n\nActive & pending tenants\n\nTotal Guards\n\n0\n\nAcross registered companies\n\nActive Subscriptions\n\n0\n\nPaid active tenants\n\nPlatform Availability\n\n0%\n\n0 monitored probes\nCompanies Overview\nView All →\n0\nTotal\nActive\n0\nTrial\n0\nExpired\n0\nOnboarding Queue\nView All →\n\nAll pending company registrations reviewed.\n\nBilling Overview\nView Report →\n\nThis Month\n\nGH₵0\nNo billing revenue recorded yet\nPlatform Activity\nAudit Logs →\nNo platform activity yet\n\nRegistrations, approvals, and billing events appear here.\n\nSystem Health\n\nPlatform subsystem telemetry probes\n\nView All →\n\nNo system telemetry probes recorded yet.\n\nSMS Usage\nDetails\n\n0\n\nMessages sent · 0 failed\n\nCredits Consumed\n0%"
+### Ran Playwright code
+```js
+await page.evaluate('() => document.body.innerText');
+```

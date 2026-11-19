@@ -42,7 +42,11 @@ export interface CreateClientPayload {
 
 export interface AssignStationPayload {
   locationId: string;
-  supervisorId: string;
+  supervisorMode?: 'existing' | 'new';
+  supervisorId?: string;
+  newSupervisorName?: string;
+  newSupervisorEmail?: string;
+  newSupervisorPhone?: string;
   guardMode: 'existing' | 'new';
   guardId?: string;
   newGuardName?: string;
@@ -99,15 +103,25 @@ export function ClientRegistrationModal({
   const [billingCycle, setBillingCycle] = useState<'Monthly' | 'Quarterly' | 'Annual'>('Monthly');
   const [shiftCoverage, setShiftCoverage] = useState('24/7 Coverage');
   const [requiredGuards, setRequiredGuards] = useState('2');
-  const [contractStartDate, setContractStartDate] = useState('2026-11-20');
+  const [contractStartDate, setContractStartDate] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
   const [serviceNotes, setServiceNotes] = useState('');
   const [status, setStatus] = useState<'Active' | 'Onboarding'>('Onboarding');
 
   // Step 2 created records & fields
   const [createdClient, setCreatedClient] = useState<ClientRecord | null>(null);
   const [createdLocation, setCreatedLocation] = useState<LocationRecord | null>(null);
+  const [supervisorMode, setSupervisorMode] = useState<'existing' | 'new'>(
+    supervisors.length > 0 ? 'existing' : 'new',
+  );
   const [supervisorId, setSupervisorId] = useState(supervisors[0]?.id ?? '');
-  const [guardMode, setGuardMode] = useState<'existing' | 'new'>('existing');
+  const [newSupervisorName, setNewSupervisorName] = useState('');
+  const [newSupervisorEmail, setNewSupervisorEmail] = useState('');
+  const [newSupervisorPhone, setNewSupervisorPhone] = useState('');
+  const [guardMode, setGuardMode] = useState<'existing' | 'new'>(
+    guards.length > 0 ? 'existing' : 'new',
+  );
   const [guardId, setGuardId] = useState(guards[0]?.id ?? '');
   const [newGuardName, setNewGuardName] = useState('');
   const [newGuardPhone, setNewGuardPhone] = useState('');
@@ -120,11 +134,13 @@ export function ClientRegistrationModal({
       setError(null);
       setCreatedClient(null);
       setCreatedLocation(null);
+      setSupervisorMode(supervisors.length > 0 ? 'existing' : 'new');
       setSupervisorId((prev) => prev || supervisors[0]?.id || '');
+      setGuardMode(guards.length > 0 ? 'existing' : 'new');
       setGuardId((prev) => prev || guards[0]?.id || '');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, supervisors.length, guards.length]);
 
   const resetAndClose = () => {
     setClientName('');
@@ -134,6 +150,9 @@ export function ClientRegistrationModal({
     setStationName('');
     setStationAddress('');
     setServiceNotes('');
+    setNewSupervisorName('');
+    setNewSupervisorEmail('');
+    setNewSupervisorPhone('');
     setNewGuardName('');
     setNewGuardPhone('');
     setError(null);
@@ -196,7 +215,9 @@ export function ClientRegistrationModal({
 
     const check = validateStationAssignmentInput({
       locationId: createdLocation.id,
+      supervisorMode,
       supervisorId,
+      newSupervisorName,
       guardMode,
       guardId,
       newGuardName,
@@ -211,7 +232,11 @@ export function ClientRegistrationModal({
     try {
       await onAssignStation({
         locationId: createdLocation.id,
-        supervisorId,
+        supervisorMode,
+        supervisorId: supervisorMode === 'existing' ? supervisorId : undefined,
+        newSupervisorName: supervisorMode === 'new' ? newSupervisorName.trim() : undefined,
+        newSupervisorEmail: supervisorMode === 'new' ? newSupervisorEmail.trim() : undefined,
+        newSupervisorPhone: supervisorMode === 'new' ? newSupervisorPhone.trim() : undefined,
         guardMode,
         guardId: guardMode === 'existing' ? guardId : undefined,
         newGuardName: guardMode === 'new' ? newGuardName.trim() : undefined,
@@ -586,22 +611,75 @@ export function ClientRegistrationModal({
             </div>
           </div>
 
-          <div>
-            <label htmlFor="step2-sup" className="block text-xs font-semibold mb-1">
-              Assign Regional Supervisor *
-            </label>
-            <select
-              id="step2-sup"
-              value={supervisorId}
-              onChange={(e) => setSupervisorId(e.target.value)}
-              className={inputCls}
-            >
-              {supervisors.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.employeeId}) — {s.assignedLocations.length} sites
-                </option>
-              ))}
-            </select>
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold">Assign Regional Supervisor *</span>
+              <div className="inline-flex rounded-lg border border-slate-200 dark:border-[#24395D] p-0.5 bg-slate-100 dark:bg-[#0D182D] text-[11px]">
+                <button
+                  type="button"
+                  disabled={supervisors.length === 0}
+                  onClick={() => setSupervisorMode('existing')}
+                  className={`px-2.5 py-1 rounded-md font-semibold disabled:opacity-40 ${
+                    supervisorMode === 'existing'
+                      ? 'bg-white dark:bg-[#162747] text-slate-900 dark:text-white'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  Existing Supervisor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSupervisorMode('new')}
+                  className={`px-2.5 py-1 rounded-md font-semibold flex items-center gap-1 ${
+                    supervisorMode === 'new'
+                      ? 'bg-white dark:bg-[#162747] text-slate-900 dark:text-white'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  <UserPlus className="w-3 h-3" />
+                  Add Supervisor
+                </button>
+              </div>
+            </div>
+
+            {supervisorMode === 'existing' && supervisors.length > 0 ? (
+              <select
+                id="step2-sup"
+                aria-label="Select supervisor for station"
+                value={supervisorId}
+                onChange={(e) => setSupervisorId(e.target.value)}
+                className={inputCls}
+              >
+                {supervisors.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.employeeId}) — {s.assignedLocations.length} sites
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <input
+                  required
+                  value={newSupervisorName}
+                  onChange={(e) => setNewSupervisorName(e.target.value)}
+                  placeholder="Supervisor Full Name *"
+                  className={inputCls}
+                />
+                <input
+                  type="email"
+                  value={newSupervisorEmail}
+                  onChange={(e) => setNewSupervisorEmail(e.target.value)}
+                  placeholder="Supervisor Email"
+                  className={inputCls}
+                />
+                <input
+                  value={newSupervisorPhone}
+                  onChange={(e) => setNewSupervisorPhone(e.target.value)}
+                  placeholder="Phone (+233 ...)"
+                  className={inputCls}
+                />
+              </div>
+            )}
           </div>
 
           <div className="space-y-2.5">
@@ -610,8 +688,9 @@ export function ClientRegistrationModal({
               <div className="inline-flex rounded-lg border border-slate-200 dark:border-[#24395D] p-0.5 bg-slate-100 dark:bg-[#0D182D] text-[11px]">
                 <button
                   type="button"
+                  disabled={guards.length === 0}
                   onClick={() => setGuardMode('existing')}
-                  className={`px-2.5 py-1 rounded-md font-semibold ${
+                  className={`px-2.5 py-1 rounded-md font-semibold disabled:opacity-40 ${
                     guardMode === 'existing'
                       ? 'bg-white dark:bg-[#162747] text-slate-900 dark:text-white'
                       : 'text-slate-500'
@@ -634,7 +713,7 @@ export function ClientRegistrationModal({
               </div>
             </div>
 
-            {guardMode === 'existing' ? (
+            {guardMode === 'existing' && guards.length > 0 ? (
               <select
                 aria-label="Select guard for station"
                 value={guardId}
@@ -741,8 +820,16 @@ export function StationTeamAssignModal({
   onAssignStation,
 }: StationTeamAssignModalProps) {
   const [locationId, setLocationId] = useState(initialLocationId ?? stations[0]?.id ?? '');
+  const [supervisorMode, setSupervisorMode] = useState<'existing' | 'new'>(
+    supervisors.length > 0 ? 'existing' : 'new',
+  );
   const [supervisorId, setSupervisorId] = useState(supervisors[0]?.id ?? '');
-  const [guardMode, setGuardMode] = useState<'existing' | 'new'>('existing');
+  const [newSupervisorName, setNewSupervisorName] = useState('');
+  const [newSupervisorEmail, setNewSupervisorEmail] = useState('');
+  const [newSupervisorPhone, setNewSupervisorPhone] = useState('');
+  const [guardMode, setGuardMode] = useState<'existing' | 'new'>(
+    guards.length > 0 ? 'existing' : 'new',
+  );
   const [guardId, setGuardId] = useState(guards[0]?.id ?? '');
   const [newGuardName, setNewGuardName] = useState('');
   const [newGuardPhone, setNewGuardPhone] = useState('');
@@ -756,14 +843,18 @@ export function StationTeamAssignModal({
       const targetLoc =
         stations.find((s) => s.id === initialLocationId) ?? stations[0];
       setLocationId(targetLoc?.id ?? '');
+      setSupervisorMode(supervisors.length > 0 ? 'existing' : 'new');
       setSupervisorId(
         targetLoc?.supervisorId && targetLoc.supervisorId !== ''
           ? targetLoc.supervisorId
           : supervisors[0]?.id ?? '',
       );
+      setNewSupervisorName('');
+      setNewSupervisorEmail('');
+      setNewSupervisorPhone('');
       setPostName(targetLoc?.postCode || 'Main Gate');
       setGuardId(guards[0]?.id ?? '');
-      setGuardMode('existing');
+      setGuardMode(guards.length > 0 ? 'existing' : 'new');
       setNewGuardName('');
       setNewGuardPhone('');
       setError(null);
@@ -779,7 +870,9 @@ export function StationTeamAssignModal({
 
     const check = validateStationAssignmentInput({
       locationId,
+      supervisorMode,
       supervisorId,
+      newSupervisorName,
       guardMode,
       guardId,
       newGuardName,
@@ -794,7 +887,11 @@ export function StationTeamAssignModal({
     try {
       await onAssignStation({
         locationId,
-        supervisorId,
+        supervisorMode,
+        supervisorId: supervisorMode === 'existing' ? supervisorId : undefined,
+        newSupervisorName: supervisorMode === 'new' ? newSupervisorName.trim() : undefined,
+        newSupervisorEmail: supervisorMode === 'new' ? newSupervisorEmail.trim() : undefined,
+        newSupervisorPhone: supervisorMode === 'new' ? newSupervisorPhone.trim() : undefined,
         guardMode,
         guardId: guardMode === 'existing' ? guardId : undefined,
         newGuardName: guardMode === 'new' ? newGuardName.trim() : undefined,
@@ -854,22 +951,74 @@ export function StationTeamAssignModal({
             </select>
           </div>
 
-          <div>
-            <label htmlFor="assign-sup" className="block text-xs font-semibold mb-1">
-              Assigned Supervisor *
-            </label>
-            <select
-              id="assign-sup"
-              value={supervisorId}
-              onChange={(e) => setSupervisorId(e.target.value)}
-              className={inputCls}
-            >
-              {supervisors.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.employeeId})
-                </option>
-              ))}
-            </select>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold">Assigned Supervisor *</span>
+              <div className="inline-flex rounded-lg border border-slate-200 dark:border-[#24395D] p-0.5 bg-slate-100 dark:bg-[#0D182D] text-[11px]">
+                <button
+                  type="button"
+                  disabled={supervisors.length === 0}
+                  onClick={() => setSupervisorMode('existing')}
+                  className={`px-2.5 py-1 rounded-md font-semibold disabled:opacity-40 ${
+                    supervisorMode === 'existing'
+                      ? 'bg-white dark:bg-[#162747] text-slate-900 dark:text-white'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  Existing Supervisor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSupervisorMode('new')}
+                  className={`px-2.5 py-1 rounded-md font-semibold ${
+                    supervisorMode === 'new'
+                      ? 'bg-white dark:bg-[#162747] text-slate-900 dark:text-white'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  + New Supervisor
+                </button>
+              </div>
+            </div>
+
+            {supervisorMode === 'existing' && supervisors.length > 0 ? (
+              <select
+                id="assign-sup"
+                aria-label="Select supervisor"
+                value={supervisorId}
+                onChange={(e) => setSupervisorId(e.target.value)}
+                className={inputCls}
+              >
+                {supervisors.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.employeeId})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <input
+                  required
+                  value={newSupervisorName}
+                  onChange={(e) => setNewSupervisorName(e.target.value)}
+                  placeholder="Supervisor Name *"
+                  className={inputCls}
+                />
+                <input
+                  type="email"
+                  value={newSupervisorEmail}
+                  onChange={(e) => setNewSupervisorEmail(e.target.value)}
+                  placeholder="Email"
+                  className={inputCls}
+                />
+                <input
+                  value={newSupervisorPhone}
+                  onChange={(e) => setNewSupervisorPhone(e.target.value)}
+                  placeholder="Phone"
+                  className={inputCls}
+                />
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -881,8 +1030,9 @@ export function StationTeamAssignModal({
               <div className="inline-flex rounded-lg border border-slate-200 dark:border-[#24395D] p-0.5 bg-slate-100 dark:bg-[#0D182D] text-[11px]">
                 <button
                   type="button"
+                  disabled={guards.length === 0}
                   onClick={() => setGuardMode('existing')}
-                  className={`px-2.5 py-1 rounded-md font-semibold ${
+                  className={`px-2.5 py-1 rounded-md font-semibold disabled:opacity-40 ${
                     guardMode === 'existing'
                       ? 'bg-white dark:bg-[#162747] text-slate-900 dark:text-white'
                       : 'text-slate-500'
@@ -904,7 +1054,7 @@ export function StationTeamAssignModal({
               </div>
             </div>
 
-            {guardMode === 'existing' ? (
+            {guardMode === 'existing' && guards.length > 0 ? (
               <select
                 aria-label="Select guard"
                 value={guardId}

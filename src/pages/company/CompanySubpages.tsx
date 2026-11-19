@@ -41,6 +41,7 @@ import type {
   AttendanceRecord,
   BillingInvoiceRecord,
   ClientRecord,
+  CompanyAccountRecord,
   DutyScheduleRecord,
   GuardRecord,
   IncidentRecord,
@@ -53,6 +54,8 @@ import type {
 
 interface CompanySubpagesProps {
   activeRoute: string;
+  companyName: string;
+  companyProfile: CompanyAccountRecord | null;
   guards: GuardRecord[];
   locations: LocationRecord[];
   supervisors: SupervisorRecord[];
@@ -65,6 +68,11 @@ interface CompanySubpagesProps {
   announcements: AnnouncementRecord[];
   notifications: NotificationRecord[];
   invoices: BillingInvoiceRecord[];
+  onCreateSupervisor: (payload: {
+    name: string;
+    email: string;
+    phone: string;
+  }) => Promise<void>;
   onCreateClient: (
     payload: CreateClientPayload,
   ) => Promise<{ client: ClientRecord; location: LocationRecord }>;
@@ -108,6 +116,8 @@ interface CompanySubpagesProps {
 
 export function CompanySubpages({
   activeRoute,
+  companyName,
+  companyProfile,
   guards,
   locations,
   supervisors,
@@ -120,6 +130,7 @@ export function CompanySubpages({
   announcements,
   notifications,
   invoices,
+  onCreateSupervisor,
   onCreateClient,
   onAssignStation,
   onCreateGuard,
@@ -139,6 +150,7 @@ export function CompanySubpages({
     stations: LocationRecord[];
     initialLocationId?: string;
   } | null>(null);
+  const [supervisorModalOpen, setSupervisorModalOpen] = useState(false);
   const [guardModalOpen, setGuardModalOpen] = useState(false);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
@@ -147,21 +159,25 @@ export function CompanySubpages({
   const [selectedIncident, setSelectedIncident] = useState<IncidentRecord | null>(null);
 
   // Form States
+  const [newSupName, setNewSupName] = useState('');
+  const [newSupEmail, setNewSupEmail] = useState('');
+  const [newSupPhone, setNewSupPhone] = useState('');
+
   const [newGuardName, setNewGuardName] = useState('');
   const [newGuardPhone, setNewGuardPhone] = useState('');
-  const [newGuardLoc, setNewGuardLoc] = useState(locations[0]?.id ?? 'loc-1');
+  const [newGuardLoc, setNewGuardLoc] = useState(locations[0]?.id ?? '');
   const [newGuardPost, setNewGuardPost] = useState('Main Access Gate');
   const [newGuardShift, setNewGuardShift] = useState<'Day' | 'Evening' | 'Night'>('Day');
 
   const [newLocName, setNewLocName] = useState('');
   const [newLocAddress, setNewLocAddress] = useState('');
   const [newLocZone, setNewLocZone] = useState('Metro Zone');
-  const [newLocClient, setNewLocClient] = useState(clients[0]?.id ?? 'cli-1');
-  const [newLocSup, setNewLocSup] = useState(supervisors[0]?.id ?? 'usr-sup-1');
+  const [newLocClient, setNewLocClient] = useState(clients[0]?.id ?? '');
+  const [newLocSup, setNewLocSup] = useState(supervisors[0]?.id ?? '');
 
-  const [schLoc, setSchLoc] = useState(locations[0]?.id ?? 'loc-1');
+  const [schLoc, setSchLoc] = useState(locations[0]?.id ?? '');
   const [schShift, setSchShift] = useState<'Day' | 'Evening' | 'Night'>('Day');
-  const [schDate, setSchDate] = useState('2026-11-20');
+  const [schDate, setSchDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [schGuard, setSchGuard] = useState(guards[0]?.id ?? '');
 
   const [annTitle, setAnnTitle] = useState('');
@@ -234,10 +250,11 @@ export function CompanySubpages({
             </div>
             <button
               type="button"
+              disabled={clients.length === 0}
               onClick={() =>
-                onExportCsv('acme-clients.csv', clients as unknown as Array<Record<string, unknown>>)
+                onExportCsv('company-clients.csv', clients as unknown as Array<Record<string, unknown>>)
               }
-              className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-[#24395D] bg-white dark:bg-[#121E36] text-xs font-semibold flex items-center gap-2 hover:border-[#10A878] cursor-pointer"
+              className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-[#24395D] bg-white dark:bg-[#121E36] text-xs font-semibold flex items-center gap-2 hover:border-[#10A878] cursor-pointer disabled:opacity-50"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Export CSV</span>
@@ -254,6 +271,19 @@ export function CompanySubpages({
           </div>
         </div>
 
+        {filteredClients.length === 0 ? (
+          <div className={cardCls}>
+            <EmptyState
+              title={clients.length === 0 ? 'No client accounts yet' : 'No clients match your search'}
+              description={
+                clients.length === 0
+                  ? 'Register your first client account, station address, and contract pricing to assign supervisors and guards.'
+                  : 'Try adjusting your search query.'
+              }
+              icon={Building2}
+            />
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredClients.map((client) => {
             const coverage = summarizeClientStationCoverage(client, locations, guards);
@@ -386,6 +416,7 @@ export function CompanySubpages({
             );
           })}
         </div>
+        )}
 
         <ClientRegistrationModal
           open={clientModalOpen}
@@ -451,67 +482,79 @@ export function CompanySubpages({
         </div>
 
         <div className={cardCls}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-[#1E2E4A] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  <th className="py-3 pr-4">Location</th>
-                  <th className="py-3 px-3">Client</th>
-                  <th className="py-3 px-3">Supervisor</th>
-                  <th className="py-3 px-3 text-right">Guards</th>
-                  <th className="py-3 px-3 text-right">Attendance</th>
-                  <th className="py-3 pl-3 text-right">Status</th>
-                  <th className="py-3 pl-3 text-right">Team</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-[#1A2A46] text-xs">
-                {visibleLocs.map((loc) => (
-                  <tr key={loc.id} className="hover:bg-slate-50/70 dark:hover:bg-white/3">
-                    <td className="py-3 pr-4">
-                      <p className="font-bold text-slate-900 dark:text-white">{loc.name}</p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {loc.postCode} · {loc.zone}
-                      </p>
-                    </td>
-                    <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
-                      {loc.clientName}
-                    </td>
-                    <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
-                      {loc.supervisorName === 'Unassigned' ? (
-                        <span className="text-amber-500 font-semibold">Unassigned</span>
-                      ) : (
-                        loc.supervisorName
-                      )}
-                    </td>
-                    <td className="py-3 px-3 text-right font-semibold tabular-nums">
-                      {loc.onDutyCount}/{loc.assignedGuardsCount}
-                    </td>
-                    <td className="py-3 px-3 text-right font-semibold tabular-nums text-[#10A878]">
-                      {loc.attendanceRate}%
-                    </td>
-                    <td className="py-3 pl-3 text-right">
-                      <StatusBadge label={loc.status} compact />
-                    </td>
-                    <td className="py-3 pl-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setAssignTarget({
-                            clientName: loc.clientName,
-                            stations: [loc],
-                            initialLocationId: loc.id,
-                          })
-                        }
-                        className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-[#24395D] hover:border-[#10A878] text-[11px] font-semibold cursor-pointer"
-                      >
-                        Assign Team
-                      </button>
-                    </td>
+          {visibleLocs.length === 0 ? (
+            <EmptyState
+              title={locations.length === 0 ? 'No security locations yet' : 'No locations match search'}
+              description={
+                locations.length === 0
+                  ? 'Add a contracted client station or direct location to deploy supervisors and guards.'
+                  : 'Clear the search filter to see all registered locations.'
+              }
+              icon={MapPin}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-[#1E2E4A] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <th className="py-3 pr-4">Location</th>
+                    <th className="py-3 px-3">Client</th>
+                    <th className="py-3 px-3">Supervisor</th>
+                    <th className="py-3 px-3 text-right">Guards</th>
+                    <th className="py-3 px-3 text-right">Attendance</th>
+                    <th className="py-3 pl-3 text-right">Status</th>
+                    <th className="py-3 pl-3 text-right">Team</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-[#1A2A46] text-xs">
+                  {visibleLocs.map((loc) => (
+                    <tr key={loc.id} className="hover:bg-slate-50/70 dark:hover:bg-white/3">
+                      <td className="py-3 pr-4">
+                        <p className="font-bold text-slate-900 dark:text-white">{loc.name}</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {loc.postCode} · {loc.zone}
+                        </p>
+                      </td>
+                      <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
+                        {loc.clientName}
+                      </td>
+                      <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
+                        {loc.supervisorName === 'Unassigned' ? (
+                          <span className="text-amber-500 font-semibold">Unassigned</span>
+                        ) : (
+                          loc.supervisorName
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right font-semibold tabular-nums">
+                        {loc.onDutyCount}/{loc.assignedGuardsCount}
+                      </td>
+                      <td className="py-3 px-3 text-right font-semibold tabular-nums text-[#10A878]">
+                        {loc.attendanceRate}%
+                      </td>
+                      <td className="py-3 pl-3 text-right">
+                        <StatusBadge label={loc.status} compact />
+                      </td>
+                      <td className="py-3 pl-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAssignTarget({
+                              clientName: loc.clientName,
+                              stations: [loc],
+                              initialLocationId: loc.id,
+                            })
+                          }
+                          className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-[#24395D] hover:border-[#10A878] text-[11px] font-semibold cursor-pointer"
+                        >
+                          Assign Team
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <StationTeamAssignModal
@@ -537,10 +580,10 @@ export function CompanySubpages({
               e.preventDefault();
               await onCreateLocation({
                 name: newLocName,
-                clientId: newLocClient,
+                clientId: newLocClient || (clients[0]?.id ?? ''),
                 address: newLocAddress,
                 zone: newLocZone,
-                supervisorId: newLocSup,
+                supervisorId: newLocSup || (supervisors[0]?.id ?? ''),
               });
               setNewLocName('');
               setNewLocAddress('');
@@ -575,6 +618,7 @@ export function CompanySubpages({
                   onChange={(e) => setNewLocClient(e.target.value)}
                   className={`${inputCls} w-full`}
                 >
+                  <option value="">Direct Site</option>
                   {clients.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -589,6 +633,7 @@ export function CompanySubpages({
                   onChange={(e) => setNewLocSup(e.target.value)}
                   className={`${inputCls} w-full`}
                 >
+                  <option value="">Unassigned</option>
                   {supervisors.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -667,8 +712,12 @@ export function CompanySubpages({
         <div className={cardCls}>
           {filteredGuards.length === 0 ? (
             <EmptyState
-              title="No guards match your filter"
-              description="Try clearing the search term or status filter."
+              title={guards.length === 0 ? 'No guards deployed yet' : 'No guards match your filter'}
+              description={
+                guards.length === 0
+                  ? 'Register a client station or location first, then deploy your security guards.'
+                  : 'Try clearing the search term or status filter.'
+              }
               icon={Users}
             />
           ) : (
@@ -743,97 +792,114 @@ export function CompanySubpages({
           title="Deploy New Security Guard"
           subtitle="Assign officer directly to an active site roster"
         >
-          <form
-            className="space-y-3.5"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              await onCreateGuard({
-                name: newGuardName,
-                phone: newGuardPhone,
-                locationId: newGuardLoc,
-                postName: newGuardPost,
-                shiftType: newGuardShift,
-              });
-              setNewGuardName('');
-              setNewGuardPhone('');
-              setGuardModalOpen(false);
-            }}
-          >
-            <div>
-              <label className="block text-xs font-semibold mb-1">Full Name</label>
-              <input
-                required
-                value={newGuardName}
-                onChange={(e) => setNewGuardName(e.target.value)}
-                placeholder="e.g., Daniel Mensah"
-                className={`${inputCls} w-full`}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1">Contact Phone</label>
-              <input
-                required
-                value={newGuardPhone}
-                onChange={(e) => setNewGuardPhone(e.target.value)}
-                placeholder="+44 7700 900510"
-                className={`${inputCls} w-full`}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold mb-1">Assigned Location</label>
-                <select
-                  value={newGuardLoc}
-                  onChange={(e) => setNewGuardLoc(e.target.value)}
-                  className={`${inputCls} w-full`}
+          {locations.length === 0 ? (
+            <div className="space-y-4 text-xs py-2">
+              <p className="text-slate-600 dark:text-slate-300">
+                Create a client station or security location before deploying a guard.
+              </p>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setGuardModalOpen(false)}
+                  className="px-4 py-2 rounded-lg bg-[#10A878] text-white font-semibold"
                 >
-                  {locations.slice(0, 10).map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1">Shift</label>
-                <select
-                  value={newGuardShift}
-                  onChange={(e) =>
-                    setNewGuardShift(e.target.value as 'Day' | 'Evening' | 'Night')
-                  }
-                  className={`${inputCls} w-full`}
-                >
-                  <option value="Day">Day Shift</option>
-                  <option value="Evening">Evening Shift</option>
-                  <option value="Night">Night Shift</option>
-                </select>
+                  Got it
+                </button>
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1">Post Assignment</label>
-              <input
-                required
-                value={newGuardPost}
-                onChange={(e) => setNewGuardPost(e.target.value)}
-                className={`${inputCls} w-full`}
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setGuardModalOpen(false)}
-                className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-[#24395D] text-xs font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-lg bg-[#10A878] text-white text-xs font-semibold"
-              >
-                Deploy Guard
-              </button>
-            </div>
-          </form>
+          ) : (
+            <form
+              className="space-y-3.5"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                await onCreateGuard({
+                  name: newGuardName,
+                  phone: newGuardPhone,
+                  locationId: newGuardLoc || (locations[0]?.id ?? ''),
+                  postName: newGuardPost,
+                  shiftType: newGuardShift,
+                });
+                setNewGuardName('');
+                setNewGuardPhone('');
+                setGuardModalOpen(false);
+              }}
+            >
+              <div>
+                <label className="block text-xs font-semibold mb-1">Full Name</label>
+                <input
+                  required
+                  value={newGuardName}
+                  onChange={(e) => setNewGuardName(e.target.value)}
+                  placeholder="e.g., Daniel Mensah"
+                  className={`${inputCls} w-full`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1">Contact Phone</label>
+                <input
+                  required
+                  value={newGuardPhone}
+                  onChange={(e) => setNewGuardPhone(e.target.value)}
+                  placeholder="+233 24 000 0000"
+                  className={`${inputCls} w-full`}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Assigned Location</label>
+                  <select
+                    value={newGuardLoc || locations[0]?.id || ''}
+                    onChange={(e) => setNewGuardLoc(e.target.value)}
+                    className={`${inputCls} w-full`}
+                  >
+                    {locations.slice(0, 10).map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Shift</label>
+                  <select
+                    value={newGuardShift}
+                    onChange={(e) =>
+                      setNewGuardShift(e.target.value as 'Day' | 'Evening' | 'Night')
+                    }
+                    className={`${inputCls} w-full`}
+                  >
+                    <option value="Day">Day Shift</option>
+                    <option value="Evening">Evening Shift</option>
+                    <option value="Night">Night Shift</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1">Post Assignment</label>
+                <input
+                  required
+                  value={newGuardPost}
+                  onChange={(e) => setNewGuardPost(e.target.value)}
+                  className={`${inputCls} w-full`}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setGuardModalOpen(false)}
+                  className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-[#24395D] text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-[#10A878] text-white text-xs font-semibold"
+                >
+                  Deploy Guard
+                </button>
+              </div>
+            </form>
+          )}
         </Modal>
 
         <Modal
@@ -893,53 +959,143 @@ export function CompanySubpages({
   if (activeRoute === 'supervisors') {
     return (
       <div className="space-y-5">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            Regional Supervisors
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Field leadership overseeing site compliance and shift report verification
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              Regional Supervisors
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Field leadership overseeing site compliance and shift report verification
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSupervisorModalOpen(true)}
+            className="px-3.5 py-2 rounded-lg bg-[#10A878] hover:bg-[#0D9468] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Supervisor</span>
+          </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {supervisors.map((sup) => (
-            <div key={sup.id} className={cardCls}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <img
-                    src={sup.avatar}
-                    alt={sup.name}
-                    referrerPolicy="no-referrer"
-                    className="w-12 h-12 rounded-full object-cover border border-[#10A878]/40"
-                  />
+
+        {supervisors.length === 0 ? (
+          <div className={cardCls}>
+            <EmptyState
+              title="No supervisors registered yet"
+              description="Add a regional supervisor to oversee client stations, review shift reports, and manage field guards."
+              icon={UserCheck}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {supervisors.map((sup) => (
+              <div key={sup.id} className={cardCls}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={sup.avatar}
+                      alt={sup.name}
+                      referrerPolicy="no-referrer"
+                      className="w-12 h-12 rounded-full object-cover border border-[#10A878]/40"
+                    />
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                        {sup.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-mono-tabular">
+                        {sup.employeeId} · {sup.email}
+                      </p>
+                    </div>
+                  </div>
+                  <StatusBadge label={sup.status} compact />
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-[#1D2D4A] grid grid-cols-3 gap-2 text-xs">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                      {sup.name}
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-mono-tabular">
-                      {sup.employeeId} · {sup.email}
-                    </p>
+                    <span className="text-slate-400 block">Assigned Guards</span>
+                    <span className="font-bold tabular-nums">{sup.assignedGuardsCount}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Avg Response</span>
+                    <span className="font-bold tabular-nums">{sup.avgResponseMinutes} min</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Locations</span>
+                    <span className="font-bold tabular-nums">{sup.assignedLocations.length}</span>
                   </div>
                 </div>
-                <StatusBadge label={sup.status} compact />
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-[#1D2D4A] grid grid-cols-3 gap-2 text-xs">
-                <div>
-                  <span className="text-slate-400 block">Assigned Guards</span>
-                  <span className="font-bold tabular-nums">{sup.assignedGuardsCount}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Avg Response</span>
-                  <span className="font-bold tabular-nums">{sup.avgResponseMinutes} min</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Locations</span>
-                  <span className="font-bold tabular-nums">{sup.assignedLocations.length}</span>
-                </div>
-              </div>
+            ))}
+          </div>
+        )}
+
+        <Modal
+          open={supervisorModalOpen}
+          onClose={() => setSupervisorModalOpen(false)}
+          title="Register Regional Supervisor"
+          subtitle="Create a supervisor account to assign to client stations"
+        >
+          <form
+            className="space-y-3.5"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              await onCreateSupervisor({
+                name: newSupName,
+                email: newSupEmail,
+                phone: newSupPhone,
+              });
+              setNewSupName('');
+              setNewSupEmail('');
+              setNewSupPhone('');
+              setSupervisorModalOpen(false);
+            }}
+          >
+            <div>
+              <label className="block text-xs font-semibold mb-1">Full Name *</label>
+              <input
+                required
+                value={newSupName}
+                onChange={(e) => setNewSupName(e.target.value)}
+                placeholder="e.g., Kwame Boateng"
+                className={`${inputCls} w-full`}
+              />
             </div>
-          ))}
-        </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">Work Email *</label>
+              <input
+                type="email"
+                required
+                value={newSupEmail}
+                onChange={(e) => setNewSupEmail(e.target.value)}
+                placeholder="supervisor@company.com"
+                className={`${inputCls} w-full`}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">Phone Number</label>
+              <input
+                value={newSupPhone}
+                onChange={(e) => setNewSupPhone(e.target.value)}
+                placeholder="+233 24 000 0000"
+                className={`${inputCls} w-full`}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSupervisorModalOpen(false)}
+                className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-[#24395D] text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-lg bg-[#10A878] text-white text-xs font-semibold"
+              >
+                Add Supervisor
+              </button>
+            </div>
+          </form>
+        </Modal>
       </div>
     );
   }
@@ -967,38 +1123,46 @@ export function CompanySubpages({
         </div>
 
         <div className={cardCls}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-[#1E2E4A] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  <th className="py-3 pr-4">Location</th>
-                  <th className="py-3 px-3">Shift</th>
-                  <th className="py-3 px-3">Date & Window</th>
-                  <th className="py-3 px-3">Assigned Officers</th>
-                  <th className="py-3 pl-3 text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-[#1A2A46] text-xs">
-                {schedules.map((sch) => (
-                  <tr key={sch.id} className="hover:bg-slate-50/70 dark:hover:bg-white/3">
-                    <td className="py-3 pr-4 font-bold text-slate-900 dark:text-white">
-                      {sch.locationName}
-                    </td>
-                    <td className="py-3 px-3 font-semibold">{sch.shiftType} Shift</td>
-                    <td className="py-3 px-3 font-mono-tabular text-slate-600 dark:text-slate-300">
-                      {sch.date} · {sch.startTime}–{sch.endTime}
-                    </td>
-                    <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
-                      {sch.assignedGuardNames.join(', ')}
-                    </td>
-                    <td className="py-3 pl-3 text-right">
-                      <StatusBadge label={sch.status} compact />
-                    </td>
+          {schedules.length === 0 ? (
+            <EmptyState
+              title="No duty schedules yet"
+              description="Schedule a shift or assign a guard to a client station to populate shift coverage."
+              icon={CalendarClock}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-[#1E2E4A] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <th className="py-3 pr-4">Location</th>
+                    <th className="py-3 px-3">Shift</th>
+                    <th className="py-3 px-3">Date & Window</th>
+                    <th className="py-3 px-3">Assigned Officers</th>
+                    <th className="py-3 pl-3 text-right">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-[#1A2A46] text-xs">
+                  {schedules.map((sch) => (
+                    <tr key={sch.id} className="hover:bg-slate-50/70 dark:hover:bg-white/3">
+                      <td className="py-3 pr-4 font-bold text-slate-900 dark:text-white">
+                        {sch.locationName}
+                      </td>
+                      <td className="py-3 px-3 font-semibold">{sch.shiftType} Shift</td>
+                      <td className="py-3 px-3 font-mono-tabular text-slate-600 dark:text-slate-300">
+                        {sch.date} · {sch.startTime}–{sch.endTime}
+                      </td>
+                      <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
+                        {sch.assignedGuardNames.join(', ')}
+                      </td>
+                      <td className="py-3 pl-3 text-right">
+                        <StatusBadge label={sch.status} compact />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <Modal
@@ -1007,96 +1171,114 @@ export function CompanySubpages({
           title="Create Duty Schedule"
           subtitle="Assign a guard to an upcoming shift window"
         >
-          <form
-            className="space-y-3.5"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const times =
-                schShift === 'Night'
-                  ? { startTime: '22:00', endTime: '06:00' }
-                  : schShift === 'Evening'
-                    ? { startTime: '14:00', endTime: '22:00' }
-                    : { startTime: '06:00', endTime: '14:00' };
-              await onCreateSchedule({
-                locationId: schLoc,
-                shiftType: schShift,
-                date: schDate,
-                ...times,
-                guardId: schGuard,
-              });
-              setScheduleModalOpen(false);
-            }}
-          >
-            <div>
-              <label className="block text-xs font-semibold mb-1">Location</label>
-              <select
-                value={schLoc}
-                onChange={(e) => setSchLoc(e.target.value)}
-                className={`${inputCls} w-full`}
-              >
-                {locations.slice(0, 10).map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
+          {locations.length === 0 ? (
+            <div className="space-y-4 text-xs py-2">
+              <p className="text-slate-600 dark:text-slate-300">
+                Create a client station or location before scheduling shifts.
+              </p>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setScheduleModalOpen(false)}
+                  className="px-4 py-2 rounded-lg bg-[#10A878] text-white font-semibold"
+                >
+                  Got it
+                </button>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+          ) : (
+            <form
+              className="space-y-3.5"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const times =
+                  schShift === 'Night'
+                    ? { startTime: '22:00', endTime: '06:00' }
+                    : schShift === 'Evening'
+                      ? { startTime: '14:00', endTime: '22:00' }
+                      : { startTime: '06:00', endTime: '14:00' };
+                await onCreateSchedule({
+                  locationId: schLoc || (locations[0]?.id ?? ''),
+                  shiftType: schShift,
+                  date: schDate,
+                  ...times,
+                  guardId: schGuard || (guards[0]?.id ?? ''),
+                });
+                setScheduleModalOpen(false);
+              }}
+            >
               <div>
-                <label className="block text-xs font-semibold mb-1">Shift Type</label>
+                <label className="block text-xs font-semibold mb-1">Location</label>
                 <select
-                  value={schShift}
-                  onChange={(e) =>
-                    setSchShift(e.target.value as 'Day' | 'Evening' | 'Night')
-                  }
+                  value={schLoc || locations[0]?.id || ''}
+                  onChange={(e) => setSchLoc(e.target.value)}
                   className={`${inputCls} w-full`}
                 >
-                  <option value="Day">Day (06:00–14:00)</option>
-                  <option value="Evening">Evening (14:00–22:00)</option>
-                  <option value="Night">Night (22:00–06:00)</option>
+                  {locations.slice(0, 10).map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1">Shift Date</label>
-                <input
-                  type="date"
-                  required
-                  value={schDate}
-                  onChange={(e) => setSchDate(e.target.value)}
-                  className={`${inputCls} w-full`}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Shift Type</label>
+                  <select
+                    value={schShift}
+                    onChange={(e) =>
+                      setSchShift(e.target.value as 'Day' | 'Evening' | 'Night')
+                    }
+                    className={`${inputCls} w-full`}
+                  >
+                    <option value="Day">Day (06:00–14:00)</option>
+                    <option value="Evening">Evening (14:00–22:00)</option>
+                    <option value="Night">Night (22:00–06:00)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Shift Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={schDate}
+                    onChange={(e) => setSchDate(e.target.value)}
+                    className={`${inputCls} w-full`}
+                  />
+                </div>
               </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1">Assign Guard</label>
-              <select
-                value={schGuard}
-                onChange={(e) => setSchGuard(e.target.value)}
-                className={`${inputCls} w-full`}
-              >
-                {guards.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name} ({g.employeeId})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setScheduleModalOpen(false)}
-                className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-[#24395D] text-xs font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-lg bg-[#10A878] text-white text-xs font-semibold"
-              >
-                Save Schedule
-              </button>
-            </div>
-          </form>
+              <div>
+                <label className="block text-xs font-semibold mb-1">Assign Guard</label>
+                <select
+                  value={schGuard}
+                  onChange={(e) => setSchGuard(e.target.value)}
+                  className={`${inputCls} w-full`}
+                >
+                  <option value="">Unassigned (Post placeholder)</option>
+                  {guards.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name} ({g.employeeId})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setScheduleModalOpen(false)}
+                  className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-[#24395D] text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-[#10A878] text-white text-xs font-semibold"
+                >
+                  Save Schedule
+                </button>
+              </div>
+            </form>
+          )}
         </Modal>
       </div>
     );
@@ -1116,51 +1298,60 @@ export function CompanySubpages({
           </div>
           <button
             type="button"
+            disabled={attendance.length === 0}
             onClick={() =>
               onExportCsv('attendance-log.csv', attendance as unknown as Array<Record<string, unknown>>)
             }
-            className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-[#24395D] bg-white dark:bg-[#121E36] text-xs font-semibold flex items-center gap-2"
+            className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-[#24395D] bg-white dark:bg-[#121E36] text-xs font-semibold flex items-center gap-2 disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export CSV</span>
           </button>
         </div>
         <div className={cardCls}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-[#1E2E4A] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  <th className="py-3 pr-4">Guard</th>
-                  <th className="py-3 px-3">Location</th>
-                  <th className="py-3 px-3">Date</th>
-                  <th className="py-3 px-3">Scheduled</th>
-                  <th className="py-3 px-3">Check-In</th>
-                  <th className="py-3 pl-3 text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-[#1A2A46] text-xs">
-                {attendance.map((row) => (
-                  <tr key={row.id}>
-                    <td className="py-3 pr-4 font-bold text-slate-900 dark:text-white">
-                      {row.guardName}{' '}
-                      <span className="font-mono-tabular font-normal text-slate-400">
-                        ({row.employeeId})
-                      </span>
-                    </td>
-                    <td className="py-3 px-3">{row.locationName}</td>
-                    <td className="py-3 px-3 font-mono-tabular">{row.shiftDate}</td>
-                    <td className="py-3 px-3 font-mono-tabular">{row.scheduledStart}</td>
-                    <td className="py-3 px-3 font-mono-tabular">
-                      {row.actualCheckIn ?? '—'}
-                    </td>
-                    <td className="py-3 pl-3 text-right">
-                      <StatusBadge label={row.status} compact />
-                    </td>
+          {attendance.length === 0 ? (
+            <EmptyState
+              title="No attendance logs yet"
+              description="Shift check-in and check-out logs appear as guards report on duty."
+              icon={CalendarClock}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-[#1E2E4A] text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <th className="py-3 pr-4">Guard</th>
+                    <th className="py-3 px-3">Location</th>
+                    <th className="py-3 px-3">Date</th>
+                    <th className="py-3 px-3">Scheduled</th>
+                    <th className="py-3 px-3">Check-In</th>
+                    <th className="py-3 pl-3 text-right">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-[#1A2A46] text-xs">
+                  {attendance.map((row) => (
+                    <tr key={row.id}>
+                      <td className="py-3 pr-4 font-bold text-slate-900 dark:text-white">
+                        {row.guardName}{' '}
+                        <span className="font-mono-tabular font-normal text-slate-400">
+                          ({row.employeeId})
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">{row.locationName}</td>
+                      <td className="py-3 px-3 font-mono-tabular">{row.shiftDate}</td>
+                      <td className="py-3 px-3 font-mono-tabular">{row.scheduledStart}</td>
+                      <td className="py-3 px-3 font-mono-tabular">
+                        {row.actualCheckIn ?? '—'}
+                      </td>
+                      <td className="py-3 pl-3 text-right">
+                        <StatusBadge label={row.status} compact />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1177,24 +1368,34 @@ export function CompanySubpages({
             Real-time patrol observations, visitor checks, and site handovers
           </p>
         </div>
-        <div className="space-y-3">
-          {occurrences.map((occ) => (
-            <div key={occ.id} className={cardCls}>
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs font-bold text-[#10A878]">{occ.category}</p>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-                    {occ.description}
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    {occ.guardName} · {occ.locationName} · {occ.createdAt}
-                  </p>
+        {occurrences.length === 0 ? (
+          <div className={cardCls}>
+            <EmptyState
+              title="No occurrences logged yet"
+              description="Patrol observations recorded by field guards appear here in real time."
+              icon={FileText}
+            />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {occurrences.map((occ) => (
+              <div key={occ.id} className={cardCls}>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold text-[#10A878]">{occ.category}</p>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
+                      {occ.description}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {occ.guardName} · {occ.locationName} · {occ.createdAt}
+                    </p>
+                  </div>
+                  <StatusBadge label={occ.status} compact />
                 </div>
-                <StatusBadge label={occ.status} compact />
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -1213,49 +1414,59 @@ export function CompanySubpages({
           </div>
         </div>
 
-        <div className="space-y-3">
-          {incidents.map((inc) => (
-            <div
-              key={inc.id}
-              className={`${cardCls} flex flex-wrap items-center justify-between gap-4`}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge label={inc.severity} compact />
-                  <StatusBadge label={inc.status} compact />
-                  <span className="text-xs text-slate-400">{inc.reportedAt}</span>
+        {incidents.length === 0 ? (
+          <div className={cardCls}>
+            <EmptyState
+              title="No incident reports yet"
+              description="Security incidents escalated by field personnel will appear here."
+              icon={ShieldAlert}
+            />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {incidents.map((inc) => (
+              <div
+                key={inc.id}
+                className={`${cardCls} flex flex-wrap items-center justify-between gap-4`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge label={inc.severity} compact />
+                    <StatusBadge label={inc.status} compact />
+                    <span className="text-xs text-slate-400">{inc.reportedAt}</span>
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-2">
+                    {inc.type} — {inc.locationName}
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                    {inc.description}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Reported by {inc.guardName}
+                  </p>
                 </div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-2">
-                  {inc.type} — {inc.locationName}
-                </h3>
-                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
-                  {inc.description}
-                </p>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Reported by {inc.guardName}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setSelectedIncident(inc)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#24395D] text-xs font-semibold hover:border-[#10A878]"
-                >
-                  Details
-                </button>
-                {inc.status !== 'Resolved' && (
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
-                    onClick={() => void onUpdateIncidentStatus(inc.id, 'Resolved')}
-                    className="px-3 py-1.5 rounded-lg bg-[#10A878] text-white text-xs font-semibold"
+                    onClick={() => setSelectedIncident(inc)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#24395D] text-xs font-semibold hover:border-[#10A878]"
                   >
-                    Mark Resolved
+                    Details
                   </button>
-                )}
+                  {inc.status !== 'Resolved' && (
+                    <button
+                      type="button"
+                      onClick={() => void onUpdateIncidentStatus(inc.id, 'Resolved')}
+                      className="px-3 py-1.5 rounded-lg bg-[#10A878] text-white text-xs font-semibold"
+                    >
+                      Mark Resolved
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         <Modal
           open={selectedIncident !== null}
@@ -1325,43 +1536,53 @@ export function CompanySubpages({
           </p>
         </div>
 
-        <div className="space-y-3">
-          {shiftReports.map((rep) => (
-            <div
-              key={rep.id}
-              className={`${cardCls} flex flex-wrap items-center justify-between gap-4`}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono-tabular text-xs font-bold text-slate-400">
-                    {rep.id.toUpperCase()}
-                  </span>
-                  <StatusBadge label={rep.status} compact />
+        {shiftReports.length === 0 ? (
+          <div className={cardCls}>
+            <EmptyState
+              title="No shift reports yet"
+              description="Completed guard shift reports submitted for supervisor review and owner verification will appear here."
+              icon={FileCheck2}
+            />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {shiftReports.map((rep) => (
+              <div
+                key={rep.id}
+                className={`${cardCls} flex flex-wrap items-center justify-between gap-4`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono-tabular text-xs font-bold text-slate-400">
+                      {rep.id.toUpperCase()}
+                    </span>
+                    <StatusBadge label={rep.status} compact />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-1.5">
+                    {rep.locationName} — {rep.shiftType} Shift ({rep.shiftDate})
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Guard: {rep.guardName} · Supervisor: {rep.supervisorName} ·{' '}
+                    {rep.occurrencesCount} occurrences · {rep.incidentsCount} incidents
+                  </p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-2">
+                    {rep.finalSummary}
+                  </p>
                 </div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-1.5">
-                  {rep.locationName} — {rep.shiftType} Shift ({rep.shiftDate})
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Guard: {rep.guardName} · Supervisor: {rep.supervisorName} ·{' '}
-                  {rep.occurrencesCount} occurrences · {rep.incidentsCount} incidents
-                </p>
-                <p className="text-xs text-slate-600 dark:text-slate-300 mt-2">
-                  {rep.finalSummary}
-                </p>
+                {rep.status !== 'Verified by Owner' && (
+                  <button
+                    type="button"
+                    onClick={() => void onVerifyReport(rep.id)}
+                    className="px-4 py-2 rounded-lg bg-[#10A878] hover:bg-[#0D9468] text-white text-xs font-semibold flex items-center gap-1.5 shrink-0"
+                  >
+                    <FileCheck2 className="w-3.5 h-3.5" />
+                    <span>Verify as Owner</span>
+                  </button>
+                )}
               </div>
-              {rep.status !== 'Verified by Owner' && (
-                <button
-                  type="button"
-                  onClick={() => void onVerifyReport(rep.id)}
-                  className="px-4 py-2 rounded-lg bg-[#10A878] hover:bg-[#0D9468] text-white text-xs font-semibold flex items-center gap-1.5 shrink-0"
-                >
-                  <FileCheck2 className="w-3.5 h-3.5" />
-                  <span>Verify as Owner</span>
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -1388,33 +1609,43 @@ export function CompanySubpages({
           </button>
         </div>
 
-        <div className="space-y-3">
-          {announcements.map((ann) => (
-            <div key={ann.id} className={cardCls}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <StatusBadge
-                      label={ann.priority}
-                      tone={ann.priority === 'Urgent' ? 'red' : 'blue'}
-                      compact
-                    />
-                    <span className="text-xs text-slate-400">
-                      {ann.audience} · {ann.createdAt}
-                    </span>
+        {announcements.length === 0 ? (
+          <div className={cardCls}>
+            <EmptyState
+              title="No announcements yet"
+              description="Broadcast a company announcement to notify supervisors and field guards."
+              icon={Megaphone}
+            />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {announcements.map((ann) => (
+              <div key={ann.id} className={cardCls}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge
+                        label={ann.priority}
+                        tone={ann.priority === 'Urgent' ? 'red' : 'blue'}
+                        compact
+                      />
+                      <span className="text-xs text-slate-400">
+                        {ann.audience} · {ann.createdAt}
+                      </span>
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-2">
+                      {ann.title}
+                    </h3>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                      {ann.body}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-2">Posted by {ann.author}</p>
                   </div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-2">
-                    {ann.title}
-                  </h3>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
-                    {ann.body}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-2">Posted by {ann.author}</p>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         <Modal
           open={announceModalOpen}
@@ -1514,32 +1745,42 @@ export function CompanySubpages({
           Operational Notifications
         </h2>
         <div className="space-y-2.5">
-          {notifications.map((n) => (
-            <div
-              key={n.id}
-              className={`${cardCls} flex items-center justify-between gap-4`}
-            >
-              <div>
-                <p className="text-sm font-bold text-slate-900 dark:text-white">
-                  {n.title}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {n.message} · {n.timeAgo}
-                </p>
-              </div>
-              {!n.read ? (
-                <button
-                  type="button"
-                  onClick={() => onMarkNotificationRead(n.id)}
-                  className="px-3 py-1.5 rounded-lg bg-[#10A878]/15 text-[#10A878] text-xs font-semibold"
-                >
-                  Mark Read
-                </button>
-              ) : (
-                <StatusBadge label="Read" tone="slate" compact />
-              )}
+          {notifications.length === 0 ? (
+            <div className={cardCls}>
+              <EmptyState
+                title="No notifications yet"
+                description="Operational alerts and system updates will appear here."
+                icon={CheckCircle2}
+              />
             </div>
-          ))}
+          ) : (
+            notifications.map((n) => (
+              <div
+                key={n.id}
+                className={`${cardCls} flex items-center justify-between gap-4`}
+              >
+                <div>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">
+                    {n.title}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {n.message} · {n.timeAgo}
+                  </p>
+                </div>
+                {!n.read ? (
+                  <button
+                    type="button"
+                    onClick={() => onMarkNotificationRead(n.id)}
+                    className="px-3 py-1.5 rounded-lg bg-[#10A878]/15 text-[#10A878] text-xs font-semibold"
+                  >
+                    Mark Read
+                  </button>
+                ) : (
+                  <StatusBadge label="Read" tone="slate" compact />
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
     );
@@ -1564,10 +1805,11 @@ export function CompanySubpages({
           </div>
           <button
             type="button"
+            disabled={incidents.length === 0}
             onClick={() =>
-              onExportCsv('acme-incidents-report.csv', incidents as unknown as Array<Record<string, unknown>>)
+              onExportCsv('incidents-report.csv', incidents as unknown as Array<Record<string, unknown>>)
             }
-            className="px-3.5 py-2 rounded-lg bg-[#10A878] text-white text-xs font-semibold flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-lg bg-[#10A878] disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Download Incidents CSV</span>
@@ -1578,31 +1820,45 @@ export function CompanySubpages({
           <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">
             Attendance Rate by Top Security Locations (%)
           </h3>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={locationChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1E2E4A" opacity={0.35} />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#94A3B8' }} />
-                <YAxis domain={[80, 100]} tick={{ fontSize: 12, fill: '#94A3B8' }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#10213D',
-                    borderColor: '#1E2E4A',
-                    borderRadius: 10,
-                    color: '#fff',
-                    fontSize: 12,
-                  }}
-                />
-                <Bar dataKey="attendance" fill="#10A878" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {locationChartData.length === 0 ? (
+            <EmptyState
+              title="No location analytics available yet"
+              description="Add security locations and deploy guards to view site performance charts."
+              icon={MapPin}
+            />
+          ) : (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={locationChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1E2E4A" opacity={0.35} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#94A3B8' }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: '#94A3B8' }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#10213D',
+                      borderColor: '#1E2E4A',
+                      borderRadius: 10,
+                      color: '#fff',
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar dataKey="attendance" fill="#10A878" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   if (activeRoute === 'billing') {
+    const planName = companyProfile?.planName ? `${companyProfile.planName} Plan` : 'No Active Plan';
+    const monthlyFee = companyProfile?.monthlyFee ?? 0;
+    const smsUsed = companyProfile?.smsCreditsUsed ?? 0;
+    const smsLimit = companyProfile?.smsCreditsLimit ?? 0;
+    const activeGuardsCount = companyProfile?.guardsCount ?? guards.length;
+
     return (
       <div className="space-y-5">
         <div>
@@ -1610,7 +1866,7 @@ export function CompanySubpages({
             Subscription & Billing
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Acme Security Ltd · Enterprise Plan (GH₵1,450 / month)
+            {companyName} · {planName} (GH₵{monthlyFee.toLocaleString()} / month)
           </p>
         </div>
 
@@ -1620,40 +1876,56 @@ export function CompanySubpages({
               <CreditCard className="w-4 h-4 text-[#10A878]" />
               <span>Current Plan</span>
             </div>
-            <p className="text-xl font-bold mt-2">Enterprise SaaS</p>
-            <p className="text-xs text-[#10A878] mt-1 font-semibold">Active · Auto-renew enabled</p>
+            <p className="text-xl font-bold mt-2">{planName}</p>
+            <p className="text-xs text-[#10A878] mt-1 font-semibold">
+              {companyProfile?.subscriptionStatus ?? 'Unprovisioned'}
+            </p>
           </div>
           <div className={cardCls}>
-            <span className="text-xs text-slate-400">Licensed Guard Seats</span>
-            <p className="text-xl font-bold tabular-nums mt-2">254 / 300</p>
-            <p className="text-xs text-slate-500 mt-1">46 seats available</p>
+            <span className="text-xs text-slate-400">Registered Guards</span>
+            <p className="text-xl font-bold tabular-nums mt-2">{activeGuardsCount}</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Across {companyProfile?.locationsCount ?? locations.length} locations
+            </p>
           </div>
           <div className={cardCls}>
             <span className="text-xs text-slate-400">SMS Alert Credits</span>
-            <p className="text-xl font-bold tabular-nums mt-2">3,420 / 10,000</p>
-            <p className="text-xs text-slate-500 mt-1">Resets Dec 1, 2026</p>
+            <p className="text-xl font-bold tabular-nums mt-2">
+              {smsUsed.toLocaleString()} / {smsLimit.toLocaleString()}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              {Math.max(0, smsLimit - smsUsed).toLocaleString()} credits remaining
+            </p>
           </div>
         </div>
 
         <div className={cardCls}>
           <h3 className="text-sm font-bold mb-3">Billing History</h3>
-          <div className="space-y-2.5">
-            {invoices.map((inv) => (
-              <div
-                key={inv.id}
-                className="flex items-center justify-between py-2.5 border-b last:border-b-0 border-slate-100 dark:border-[#1D2D4A] text-xs"
-              >
-                <div>
-                  <p className="font-bold font-mono-tabular">{inv.id}</p>
-                  <p className="text-slate-500">{inv.period} · {inv.planName}</p>
+          {invoices.length === 0 ? (
+            <EmptyState
+              title="No invoices issued yet"
+              description="Platform billing invoices for this company workspace will appear here."
+              icon={CreditCard}
+            />
+          ) : (
+            <div className="space-y-2.5">
+              {invoices.map((inv) => (
+                <div
+                  key={inv.id}
+                  className="flex items-center justify-between py-2.5 border-b last:border-b-0 border-slate-100 dark:border-[#1D2D4A] text-xs"
+                >
+                  <div>
+                    <p className="font-bold font-mono-tabular">{inv.id}</p>
+                    <p className="text-slate-500">{inv.period} · {inv.planName}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold tabular-nums">GH₵{inv.amount.toLocaleString()}</span>
+                    <StatusBadge label={inv.status} compact />
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-bold tabular-nums">GH₵{inv.amount.toLocaleString()}</span>
-                  <StatusBadge label={inv.status} compact />
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1667,7 +1939,7 @@ export function CompanySubpages({
           Company Settings
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Configure Acme Security Ltd operational policies and alert thresholds
+          Configure {companyName} operational policies and alert thresholds
         </p>
       </div>
       <div className={cardCls}>
@@ -1682,7 +1954,7 @@ export function CompanySubpages({
           <div>
             <label className="block font-semibold mb-1">Registered Company Name</label>
             <input
-              defaultValue="Acme Security Ltd"
+              defaultValue={companyName}
               className={`${inputCls} w-full`}
             />
           </div>
